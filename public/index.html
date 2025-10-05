@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SupaGram</title>
+    <!-- We are using custom CSS embedded here for a stylish, modern look -->
+    <style>
+        /* --- Default (Light) Theme Variables --- */
+        :root {
+            --primary-color: #ff385c;
+            --secondary-color: #2c3e50;
+            --background-color: #f4f7f6;
+            --card-background: #ffffff;
+            --text-color: #2c3e50;
+            --input-background: #ffffff;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --chat-bubble-sent: #d1e7ff;
+            --chat-bubble-received: #f1f0f0;
+        }
+
+        /* --- Dark Theme Variables (Activated via .dark-mode class on body) --- */
+        .dark-mode {
+            --secondary-color: #ecf0f1; /* Light text */
+            --background-color: #1f2a37; /* Dark background */
+            --card-background: #2c3e50; /* Dark card */
+            --text-color: #ecf0f1;
+            --input-background: #34495e;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            --chat-bubble-sent: #4a637a;
+            --chat-bubble-received: #34495e;
+        }
+
+        /* Apply dark mode to body and critical elements */
+        .dark-mode body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+        .dark-mode header,
+        .dark-mode .upload-box,
+        .dark-mode .post,
+        .dark-mode #online-users-sidebar,
+        .dark-mode #chat-main,
+        .dark-mode .modal-content {
+            background-color: var(--card-background);
+            color: var(--text-color);
+            box-shadow: var(--shadow);
+        }
+        .dark-mode input[type="text"],
+        .dark-mode input[type="email"],
+        .dark-mode input[type="password"],
+        .dark-mode input[type="file"],
+        .dark-mode #chat-input,
+        .dark-mode .comment-input-row input { /* Added comment input */
+            background-color: var(--input-background);
+            color: var(--text-color);
+            border-color: #4a637a;
+        }
+        .dark-mode #chat-window {
+            background: #1a242f; /* Darker message area */
+            border-color: #4a637a;
+        }
+        .dark-mode .message.received {
+            background-color: var(--chat-bubble-received); /* Darker received messages */
+        }
+        .dark-mode .user-item:hover {
+            background-color: #34495e;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: var(--text-color); /* Use text color variable */
+            background-color: var(--background-color); /* Use background color variable */
+            transition: background-color 0.3s, color 0.3s;
+        }
+        header {
+            background-color: var(--card-background);
+            box-shadow: var(--shadow);
+            padding: 15px 15px; /* Reduced horizontal padding for mobile */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .logo {
+            color: var(--primary-color);
+            font-size: 1.8em;
+            font-weight: 700;
+        }
+        /* General Button Styling */
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        button:hover {
+            background-color: #e6004c;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+
+        /* Styling for Icon Buttons in the Header Navigation */
+        header nav {
+            display: flex;
+            gap: 5px; /* Small gap between icon buttons */
+        }
+
+        header nav button {
+            /* Fix size for better touch target */
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            font-size: 1.4em; /* Larger icons */
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            margin-left: 0; /* Remove default button margin */
+        }
+
+        header #logout-btn {
+             background: #ccc !important;
+             color: var(--secondary-color) !important;
+        }
+
+        /* --- Theme Selector Styling --- */
+        .theme-option {
+            border: 1px solid #ddd !important;
+            transition: all 0.2s;
+            font-size: 0.9em !important;
+        }
+        .theme-option.active {
+            border: 3px solid var(--primary-color) !important;
+            font-weight: 700 !important;
+            padding: 2px 17px !important;
+        }
+
+
+        /* --- Main Content Layout --- */
+        #main-content {
+            flex-grow: 1;
+            max-width: 1200px;
+            width: 100%;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        /* --- Upload/Post Styles (UPDATED) --- */
+        .upload-box {
+            background-color: var(--card-background);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* New: Style for icon button in upload box */
+        .upload-icon-btn {
+            width: 44px;
+            height: 44px;
+            background-color: #ccc !important;
+            color: var(--secondary-color) !important;
+            border-radius: 8px !important;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 1.2em;
+            padding: 0 !important;
+        }
+        .upload-icon-btn:hover {
+            background-color: #bbb !important;
+        }
+
+        .upload-box input[type="text"] {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+        .upload-box button {
+            margin-left: 0;
+        }
+        .post {
+            background-color: var(--card-background);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+        .post-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        /* New: Profile Picture Styling */
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 10px;
+            border: 2px solid var(--primary-color);
+            flex-shrink: 0;
+        }
+
+        .post .actions {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 1.1em;
+        }
+        .post .like-btn {
+            background: none;
+            color: var(--primary-color);
+            padding: 5px 10px;
+            border: 1px solid var(--primary-color);
+            font-weight: 400;
+            transition: all 0.2s;
+        }
+        .post .like-btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        /* New: Comments Section Styles */
+        .post .comments-section {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+        .dark-mode .post .comments-section {
+            border-top: 1px solid #4a637a;
+        }
+        .comment-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+        .comment-text {
+            background: var(--chat-bubble-received);
+            padding: 6px 10px;
+            border-radius: 12px;
+        }
+        .dark-mode .comment-text {
+            background: #34495e;
+        }
+        .comment-input-row {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .comment-input-row input {
+            flex-grow: 1;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background-color: var(--input-background);
+            color: var(--text-color);
+        }
+
+        /* --- Modal/Auth/Settings Styles --- */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background: var(--card-background);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .modal-content input {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+        .modal-content button {
+            margin-top: 15px;
+            width: 100%;
+            margin-left: 0;
+        }
+        /* --- Chat Styles --- */
+        #private-chat {
+            display: flex;
+            gap: 20px;
+            min-height: calc(100vh - 150px);
+            position: relative;
+        }
+        /* Sidebar Styling - Desktop Default */
+        #online-users-sidebar {
+            width: 250px;
+            background-color: var(--card-background);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow-y: auto;
+            flex-shrink: 0;
+            position: relative;
+            left: 0;
+            transition: left 0.3s ease-in-out;
+        }
+        /* Main Chat Area */
+        #chat-main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--card-background);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+        /* Chat Header Layout */
+        #chat-main .chat-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        /* Hamburger Button Styling */
+        .hamburger-btn {
+            background: none;
+            color: var(--primary-color);
+            font-size: 24px;
+            padding: 0;
+            margin-right: 10px;
+            border: none;
+            cursor: pointer;
+            line-height: 1;
+        }
+        /* Chat Window Styling */
+        #chat-window {
+            flex-grow: 1;
+            border: 1px solid #ddd;
+            background: #fcfcfc;
+            overflow-y: auto;
+            padding: 15px;
+            border-radius: 8px;
+            min-height: 200px;
+            max-height: 70vh;
+        }
+        .dark-mode #chat-window {
+            background: #1a242f; /* Darker message area */
+        }
+        /* Fixed Input Area */
+        .chat-input-wrapper {
+            padding-top: 10px;
+            position: relative; /* Needed for absolute positioning of emoji picker */
+        }
+        /* Chat Input Row including icons */
+        #private-chat .chat-input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center; /* Align items vertically */
+        }
+        /* New styling for the secondary icon buttons (Emoji, File) */
+        .chat-icon-btn {
+            width: 40px !important;
+            height: 40px !important;
+            font-size: 1.2em !important;
+            background: #ccc !important;
+            color: var(--secondary-color) !important;
+            border-radius: 50% !important;
+            padding: 0;
+            flex-shrink: 0; /* Prevents shrinking on smaller screens */
+            display: inline-flex; /* Ensure icon centers */
+            justify-content: center;
+            align-items: center;
+        }
+        .chat-icon-btn:hover {
+             background: #bbb !important;
+        }
+        /* New styling for the primary SEND icon button */
+        .send-icon-btn {
+            width: 40px !important;
+            height: 40px !important;
+            background-color: var(--primary-color) !important;
+            color: white !important;
+            border-radius: 50% !important;
+            padding: 0;
+            flex-shrink: 0;
+            font-size: 1.2em;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        .send-icon-btn:hover {
+            background-color: #e6004c !important; /* Slightly darker primary color */
+        }
+        #private-chat .chat-input-row input {
+            flex-grow: 1;
+            padding: 10px;
+            height: 40px; /* Match icon height */
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: var(--input-background);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+        /* --- Emoji Picker Styling --- */
+        #emoji-picker-popover {
+            position: absolute;
+            bottom: 60px; /* Position above the input field */
+            left: 0;
+            background: var(--card-background);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 10px;
+            max-height: 200px;
+            width: 100%;
+            max-width: 250px;
+            overflow-y: auto;
+            z-index: 50;
+            display: none; /* Initially hidden */
+            border: 1px solid #ddd;
+        }
+        .dark-mode #emoji-picker-popover {
+             border: 1px solid #4a637a;
+        }
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 5px;
+        }
+        .emoji-item {
+            font-size: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 6px;
+            transition: background-color 0.1s;
+        }
+        .emoji-item:hover {
+            background-color: #eee;
+        }
+        .dark-mode .emoji-item:hover {
+             background-color: #34495e;
+        }
+        /* Mobile Adjustments (<= 768px) */
+        @media (max-width: 768px) {
+            #main-content {
+                 margin: 0;
+                 padding: 0;
+            }
+            #private-chat {
+                flex-direction: column;
+                gap: 0;
+                min-height: 100vh;
+            }
+            /* Sidebar must now use viewport height and be fixed to overlay the entire screen */
+            #online-users-sidebar {
+                position: fixed;
+                top: 0;
+                left: -100%;
+                width: 80%;
+                height: 100vh;
+                padding-top: 60px;
+                z-index: 100;
+                border-radius: 0 12px 12px 0;
+            }
+            /* Class to show the sidebar */
+            #online-users-sidebar.open {
+                left: 0;
+            }
+            /* Hide Hamburger on desktop (re-affirming default) */
+            .hamburger-btn {
+                display: inline-block !important;
+            }
+            /* Make chat-main take full height/width */
+            #chat-main {
+                 min-height: calc(100vh - 60px);
+                 border-radius: 0;
+                 padding: 10px;
+                 margin-top: 60px;
+            }
+            #chat-window {
+                max-height: none;
+                min-height: 50vh;
+            }
+            /* Hide Hamburger on desktop (re-affirming the desktop media query in case of override) */
+            @media (min-width: 769px) {
+                .hamburger-btn {
+                    display: none !important;
+                }
+            }
+        }
+        /* Desktop Adjustments (> 768px) */
+        @media (min-width: 769px) {
+            /* Hide Hamburger on desktop */
+            .hamburger-btn {
+                display: none !important;
+            }
+        }
+        /* User List and Status and Messages (Unchanged) */
+        .user-item {
+            padding: 10px;
+            margin-bottom: 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+        .user-item:hover {
+            background-color: #f0f0f0;
+        }
+        .dark-mode .user-item:hover {
+             background-color: #34495e;
+        }
+        .user-item .info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .notification-badge {
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 0.75em;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 12px;
+            margin-left: auto;
+            line-height: 1;
+        }
+        .user-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-online {
+            background-color: #2ecc71; /* Green */
+        }
+        .status-offline {
+            background-color: #e74c3c; /* Red */
+        }
+        .message {
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            border-radius: 18px;
+            max-width: 70%;
+            word-wrap: break-word;
+            font-size: 0.9em;
+        }
+        .message.sent {
+            background-color: var(--chat-bubble-sent);
+            margin-left: auto;
+            text-align: right;
+        }
+        .message.received {
+            background-color: var(--chat-bubble-received);
+            margin-right: auto;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <!-- -------------------- AUTHENTICATION MODAL (Initially Visible) -------------------- -->
+        <div id="auth-modal" class="modal">
+            <div class="modal-content">
+                <h2 id="auth-title">Welcome Back!</h2>
+                <input type="text" id="username" placeholder="Username (Signup only)" style="display: none;">
+                <input type="email" id="email" placeholder="Email">
+                <input type="password" id="password" placeholder="Password">
+                <button id="auth-primary-btn">Login</button>
+                <button id="auth-toggle-btn" class="alt-btn" style="background: #ccc; color: var(--secondary-color);">Need an account? Sign Up</button>
+                <p id="auth-message" style="color: var(--primary-color); margin-top: 15px;"></p>
+            </div>
+        </div>
+
+        <!-- -------------------- SETTINGS MODAL (Initially Hidden) -------------------- -->
+        <div id="settings-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>Settings</h2>
+                <div style="text-align: left; margin-top: 20px;">
+                    <h4 style="margin-bottom: 10px; color: var(--text-color);">Appearance (Theme)</h4>
+                    <div id="theme-selectors" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button id="theme-light-btn" data-theme="light" class="theme-option" style="background: #f0f0f0; color: #333; width: 80px; padding: 5px;">Light</button>
+                        <button id="theme-dark-btn" data-theme="dark" class="theme-option" style="background: #333; color: white; width: 80px; padding: 5px;">Dark</button>
+                        <button id="theme-system-btn" data-theme="system" class="theme-option" style="background: #999; color: white; width: 80px; padding: 5px;">System</button>
+                    </div>
+
+                    <h4 style="margin-bottom: 10px; color: var(--text-color);">Profile Picture</h4>
+                    <input type="file" id="profile-picture-upload" accept="image/*" style="width: 100%; border: 1px solid #ddd;">
+                    <p style="font-size: 0.8em; color: #888; margin-top: 5px;">(Upload logic is a placeholder)</p>
+                </div>
+                <button id="close-settings-btn" style="background: var(--secondary-color); margin-top: 20px;">Close</button>
+            </div>
+        </div>
+
+        <!-- -------------------- MAIN APPLICATION LAYOUT (Initially Hidden) -------------------- -->
+        <header>
+            <h1 class="logo">SupaGram</h1>
+            <!-- UPDATED: Navigation now uses icons and responsive layout -->
+            <nav>
+                <button id="for-you-btn" title="Feed">F</button>
+                <button id="chat-btn" title="Chat">💬</button>
+                <button id="settings-btn" title="Settings">⚙️</button> <!-- NEW SETTINGS BUTTON -->
+                <button id="logout-btn" title="Logout">🚪</button>
+            </nav>
+        </header>
+        <main id="main-content">
+            <!-- 1. FOR YOU FEED -->
+            <section id="for-you-feed" style="display: none;">
+                <h2>Feeds</h2>
+                <!-- UPLOAD SECTION (UPDATED: File input replaced by icon button) -->
+                <div class="upload-box">
+                    <!-- Icon button to trigger hidden file input -->
+                    <button id="upload-icon-btn" class="upload-icon-btn" title="Upload Media">
+                         <!-- SVG for Upload/Image -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 14.899V20a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5.101M16 8l-4-4-4 4M12 4v13"></path>
+                        </svg>
+                    </button>
+                    <!-- Hidden file input for programmatically opening the file picker -->
+                    <input type="file" id="photo-upload" accept="image/*,video/*" style="display: none;">
+
+                    <input type="text" id="story-text" placeholder="Write your story/caption..." maxlength="200">
+                    <button id="post-story-btn">Post Story</button>
+                </div>
+                <!-- REAL-TIME POSTS WILL APPEAR HERE -->
+                <div id="posts-container" class="feed">
+                    <!-- Posts will be dynamically loaded and updated here -->
+                </div>
+            </section>
+            <!-- 2. PRIVATE CHAT -->
+            <section id="private-chat" style="display:none;">
+                <!-- Sidebar for Users (Online/Offline) - Toggled by Hamburger on Mobile -->
+                <div id="online-users-sidebar">
+                    <h3>Users</h3>
+                    <div id="online-users-list">
+                        <!-- User list dynamically populated here -->
+                        <p style="font-size: 0.9em; color: #999;">Waiting for users...</p>
+                    </div>
+                </div>
+                <!-- Main Chat Window -->
+                <div id="chat-main">
+                    <div class="chat-header">
+                        <!-- Hamburger Icon for Mobile -->
+                        <button id="menu-toggle-btn" class="hamburger-btn">☰</button>
+                        <h3 id="chat-recipient-name" style="color:blue">Select a user to chat...</h3>
+                    </div>
+
+                    <!-- Scrolling Message Area -->
+                    <div id="chat-window">
+                        <!-- Messages go here -->
+                    </div>
+
+                    <!-- Fixed Input Area - This is outside the scrolling chat-window -->
+                    <div class="chat-input-wrapper">
+                        <!-- NEW: Simple Emoji Picker Popover -->
+                        <div id="emoji-picker-popover">
+                            <div class="emoji-grid">
+                                <span class="emoji-item" data-emoji="😀">😀</span>
+                                <span class="emoji-item" data-emoji="😂">😂</span>
+                                <span class="emoji-item" data-emoji="😍">😍</span>
+                                <span class="emoji-item" data-emoji="😎">😎</span>
+                                <span class="emoji-item" data-emoji="🤔">🤔</span>
+                                <span class="emoji-item" data-emoji="🥳">🥳</span>
+                                <span class="emoji-item" data-emoji="👍">👍</span>
+                                <span class="emoji-item" data-emoji="🎉">🎉</span>
+                                <span class="emoji-item" data-emoji="🔥">🔥</span>
+                                <span class="emoji-item" data-emoji="💯">💯</span>
+                                <span class="emoji-item" data-emoji="❤️">❤️</span>
+                                <span class="emoji-item" data-emoji="🌟">🌟</span>
+                                <span class="emoji-item" data-emoji="🚀">🚀</span>
+                                <span class="emoji-item" data-emoji="💡">💡</span>
+                                <span class="emoji-item" data-emoji="☕">☕</span>
+                                <span class="emoji-item" data-emoji="🍕">🍕</span>
+                                <span class="emoji-item" data-emoji="🥳">🥳</span>
+                                <span class="emoji-item" data-emoji="✅">✅</span>
+                            </div>
+                        </div>
+
+                        <!-- MODIFIED: Chat input row with icon buttons for File, Emoji, and Send -->
+                        <div class="chat-input-row">
+                            <!-- Emoji Button (uses new chat-icon-btn class) -->
+                            <button id="emoji-btn" class="chat-icon-btn" title="Emojis">
+                                <!-- Smile Icon SVG -->
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                                    <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                                    <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                                </svg>
+                            </button>
+                            <!-- File Button (uses new chat-icon-btn class) -->
+                            <button id="file-btn" class="chat-icon-btn" title="Attach File">
+                                <!-- Paperclip Icon SVG -->
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto">
+                                    <path d="M15 7l-6.3 6.3a4.9 4.9 0 0 0 7 7L21 17"></path>
+                                    <path d="M9 15l6.3-6.3a4.9 4.9 0 0 0-7-7L3 7"></path>
+                                </svg>
+                            </button>
+                            <!-- Hidden file input for programmatically opening the file picker -->
+                            <input type="file" id="chat-file-upload" style="display: none;" accept="image/*, .pdf, .txt, .zip">
+
+                            <input type="text" id="chat-input" placeholder="Type a message..." disabled>
+                            <!-- Send Button (now uses send-icon-btn class and an SVG icon) -->
+                            <button id="send-btn" disabled class="send-icon-btn" title="Send">
+                                <!-- Paper Plane Icon SVG -->
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto transform rotate-45 -mt-1 -mr-0.5">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <!-- Socket.IO client library -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // --- GLOBAL STATE ---
+        const socket = io();
+        let currentAuthMode = 'login'; // 'login' or 'signup'
+        let currentUser = {
+            id: null,
+            username: null,
+            token: null,
+            // NEW: Default profile picture placeholder
+            profilePicUrl: ''
+        };
+        let onlineUsers = []; // Stores only currently online users (from socket broadcasts)
+        let currentRecipient = null; // Stores { userId, username } of the currently selected chat partner
+        let unreadCounts = {}; // { userId: count, ... } for notification badges
+
+        // --- NEW: THEME AND SETTINGS LOGIC ---
+        function setTheme(themeName) {
+            const body = document.body;
+            const themeSelectors = document.querySelectorAll('.theme-option');
+
+            // Remove all active states
+            themeSelectors.forEach(btn => btn.classList.remove('active'));
+
+            // Apply the theme logic
+            if (themeName === 'dark') {
+                body.classList.add('dark-mode');
+                document.getElementById('theme-dark-btn').classList.add('active');
+                localStorage.setItem('theme', 'dark');
+            } else if (themeName === 'light') {
+                body.classList.remove('dark-mode');
+                document.getElementById('theme-light-btn').classList.add('active');
+                localStorage.setItem('theme', 'light');
+            } else if (themeName === 'system') {
+                // System preference logic
+                localStorage.removeItem('theme');
+                // Check current system preference
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (prefersDark) {
+                    body.classList.add('dark-mode');
+                } else {
+                    body.classList.remove('dark-mode');
+                }
+                document.getElementById('theme-system-btn').classList.add('active');
+            }
+        }
+
+        function loadInitialTheme() {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme) {
+                setTheme(storedTheme);
+            } else {
+                // Default to system if no preference is stored
+                setTheme('system');
+            }
+        }
+
+        function toggleSettingsModal() {
+            const modal = document.getElementById('settings-modal');
+            modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+
+            // New: Handle profile picture upload placeholder logic
+            document.getElementById('profile-picture-upload').addEventListener('change', function() {
+                if (this.files.length > 0) {
+                     document.getElementById('auth-message').textContent = 'Profile picture selected. This URL would be saved to the database on a real server.';
+                     setTimeout(() => document.getElementById('auth-message').textContent = '', 5000);
+                     // Simulate updating the profile picture URL
+                     currentUser.profilePicUrl = 'https://placehold.co/40x40/007bff/FFFFFF?text=✔️';
+                }
+            });
+        }
+
+        // --- 1. AUTHENTICATION LOGIC (unchanged) ---
+        function toggleAuthMode() {
+            const isLogin = currentAuthMode === 'login';
+            currentAuthMode = isLogin ? 'signup' : 'login';
+            document.getElementById('auth-title').textContent = isLogin ? 'Create Your Account' : 'Welcome Back!';
+            document.getElementById('username').style.display = isLogin ? 'block' : 'none';
+            document.getElementById('auth-primary-btn').textContent = isLogin ? 'Sign Up' : 'Login';
+            document.getElementById('auth-toggle-btn').textContent = isLogin ? 'Already have an account? Login' : 'Need an account? Sign Up';
+            document.getElementById('auth-message').textContent = '';
+        }
+        async function authenticate(endpoint) {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const username = document.getElementById('username').value;
+            const authMessage = document.getElementById('auth-message');
+            authMessage.textContent = 'Processing...';
+            const payload = { email, password };
+            if (endpoint === 'signup') {
+                payload.username = username;
+            }
+            try {
+                const response = await fetch(`/api/${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    currentUser.token = data.token;
+                    currentUser.id = data.userId;
+                    currentUser.username = data.username;
+                    // NEW: Set profile picture URL from data or default
+                    currentUser.profilePicUrl = data.profilePicUrl || currentUser.profilePicUrl;
+
+                    localStorage.setItem('userToken', data.token);
+                    localStorage.setItem('currentUserData', JSON.stringify({ id: data.userId, username: data.username, profilePicUrl: currentUser.profilePicUrl }));
+                    authMessage.textContent = `Success! Welcome, ${currentUser.username}.`;
+                    // --- ACCESS GATE CONTROL ---
+                    document.getElementById('auth-modal').style.display = 'none';
+                    document.getElementById('for-you-feed').style.display = 'block';
+                    document.getElementById('chat-btn').style.display = 'inline-flex';
+                    // 1. Tell the server this user is online
+                    socket.emit('userOnline', { userId: currentUser.id, username: currentUser.username });
+                    // 2. Load initial feed data
+                    loadFeed();
+                } else {
+                    authMessage.textContent = data.message || `Authentication failed: ${response.status}`;
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                authMessage.textContent = 'Network or server error. Try again.';
+            }
+        }
+        function loginUser() {
+            authenticate('login');
+        }
+        function signupUser() {
+            authenticate('signup');
+        }
+        function logoutUser() {
+
+            if (currentUser.id) {
+                 socket.emit('userOffline', { userId: currentUser.id });
+            }
+            currentUser = { id: null, username: null, token: null, profilePicUrl: 'https://placehold.co/40x40/FF385C/FFFFFF?text=P' }; // Reset profile pic too
+            localStorage.removeItem('userToken');
+            localStorage.removeItem('currentUserData');
+            unreadCounts = {}; // Clear unread counts on logout
+
+            // Re-show the login modal and hide main content
+            document.getElementById('auth-modal').style.display = 'flex';
+            document.getElementById('for-you-feed').style.display = 'none';
+            document.getElementById('private-chat').style.display = 'none';
+            document.getElementById('chat-btn').style.display = 'none';
+            document.getElementById('auth-message').textContent = 'Logged out successfully.';
+            // Disconnect and reconnect the socket to get a fresh connection state
+            socket.disconnect();
+            socket.connect();
+        }
+        // --- 2. FEED AND POSTING LOGIC (UPDATED) ---
+        async function loadFeed() {
+            try {
+                const response = await fetch('/api/posts');
+                if (response.ok) {
+                    const data = await response.json();
+                    const posts = data.posts;
+
+                    const container = document.getElementById('posts-container');
+                    container.innerHTML = ''; // Clear existing posts
+                    posts.forEach(renderPost);
+                } else {
+                    console.error('Failed to load feed.');
+                }
+            } catch (error) {
+                console.error('Error fetching feed:', error);
+            }
+        }
+
+        // UPDATED: Include profile pic and comment section UI
+        function renderPost(post) {
+            const postsContainer = document.getElementById('posts-container');
+            const newPostElement = document.createElement('div');
+            newPostElement.className = 'post';
+            newPostElement.setAttribute('data-post-id', post.id);
+
+            // Use the profilePicUrl from the post data, or the current user's default if not available
+            const avatarUrl = post.profilePicUrl || currentUser.profilePicUrl;
+
+            const mediaHtml = post.media_url ?
+                `<img src="${post.media_url}" alt="Post Media" style="max-width:100%; border-radius: 8px; margin-top: 10px;">` : '';
+
+            newPostElement.innerHTML = `
+                <div class="post-header">
+                    <img class="user-avatar" src="${avatarUrl}" alt="${post.username}'s profile picture" onerror="this.src='${currentUser.profilePicUrl}'">
+                    <span class="username">${post.username || 'A User'}</span>
+                </div>
+                <p class="story-text">${post.content || post.text}</p>
+                ${mediaHtml}
+                <div class="actions">
+                    <span class="likes-count" id="likes-${post.id}">${post.likesCount || 0}</span> Likes
+                    <button class="like-btn" onclick="sendLike('${post.id}')">❤️</button>
+                </div>
+                <!-- NEW: Comments Section -->
+                <div class="comments-section">
+                    <h4>Replies</h4>
+                    <div id="comments-container-${post.id}">
+                        <p style="font-size: 0.8em; color: #888;">Loading replies...</p>
+                    </div>
+                    <div class="comment-input-row">
+                        <input type="text" id="reply-input-${post.id}" placeholder="Write a reply..." maxlength="100">
+                        <!-- Use the send icon button for replies -->
+                        <button class="send-icon-btn" onclick="sendReply('${post.id}')" style="width: 38px; height: 38px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto transform rotate-45 -mt-1 -mr-0.5">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+            // Prepend to show newest first
+            postsContainer.prepend(newPostElement);
+
+            // Load existing comments after rendering the post
+            loadComments(post.id);
+        }
+
+        async function uploadPost() {
+            if (!currentUser.id) {
+                document.getElementById('auth-message').textContent = 'Please log in to post.';
+                document.getElementById('auth-modal').style.display = 'flex';
+                return;
+            }
+            const fileInput = document.getElementById('photo-upload');
+            const storyText = document.getElementById('story-text').value;
+            if (!storyText && !fileInput.files.length) {
+                document.getElementById('auth-message').textContent = 'Please add a story or upload a picture!';
+                setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
+                return;
+            }
+            let mediaUrl = null;
+            if (fileInput.files.length > 0) {
+                document.getElementById('auth-message').textContent = 'Media upload is not fully implemented on the server yet. Using placeholder URL.';
+                setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
+                mediaUrl = 'https://placehold.co/600x400/FF385C/FFFFFF?text=SupaGram+Media';
+            }
+            try {
+                const response = await fetch('/api/post', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUser.id,
+                        username: currentUser.username,
+                        profilePicUrl: currentUser.profilePicUrl, // NEW: Pass profile pic URL
+                        content: storyText,
+                        media_url: mediaUrl
+                    })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    socket.emit('newPost', data.post);
+                    renderPost(data.post);
+                    document.getElementById('story-text').value = '';
+                    fileInput.value = '';
+                    document.getElementById('auth-message').textContent = 'Post submitted successfully!';
+                    setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
+                } else {
+                    document.getElementById('auth-message').textContent = 'Post submission failed: ' + (data.message || 'Unknown error.');
+                    setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
+                }
+            } catch (e) {
+                console.error('Post API Error:', e);
+                 document.getElementById('auth-message').textContent = 'An error occurred during post submission.';
+                 setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
+            }
+        }
+        function sendLike(postId) {
+            if (!currentUser.id) {
+                 document.getElementById('auth-message').textContent = 'Please log in to like a post.';
+                 document.getElementById('auth-modal').style.display = 'flex';
+                 return;
+            }
+            socket.emit('likePost', { postId: postId, userId: currentUser.id });
+            console.log(`Sending like for post: ${postId}`);
+        }
+        // --- NEW: COMMENT/REPLY LOGIC ---
+
+        // Function to render a single comment
+        function renderComment(comment) {
+            const container = document.getElementById(`comments-container-${comment.postId}`);
+            if (!container) return;
+
+            // Clear the initial "No replies yet" message if it exists
+            const noReplies = container.querySelector('p');
+            if (noReplies && noReplies.textContent.includes('No replies yet')) {
+                 container.innerHTML = '';
+            }
+
+            const commentElement = document.createElement('div');
+            commentElement.className = 'comment-item';
+            // Use 'C' for comment default if pic is missing
+            const avatarUrl = comment.profilePicUrl || 'https://placehold.co/25x25/007bff/FFFFFF?text=C';
+
+            commentElement.innerHTML = `
+                <img class="user-avatar" src="${avatarUrl}" alt="${comment.username}'s profile picture" style="width: 25px; height: 25px; margin-top: 3px; margin-right: 5px;">
+                <div class="comment-text">
+                    <strong>${comment.username || 'Anon'}</strong>: ${comment.content}
+                </div>
+            `;
+            container.appendChild(commentElement);
+        }
+
+        // Function to load existing comments for a post
+        async function loadComments(postId) {
+            try {
+                const response = await fetch(`/api/comments/${postId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    const container = document.getElementById(`comments-container-${postId}`);
+                    if (container) {
+                        container.innerHTML = ''; // Clear existing comments
+                        data.comments.forEach(renderComment);
+                        if (data.comments.length === 0) {
+                             container.innerHTML = '<p style="font-size: 0.8em; color: #888;">No replies yet.</p>';
+                        }
+                    }
+                } else {
+                    console.error('Failed to load comments:', response.status);
+                }
+            } catch (error) {
+                console.error('Error fetching comments:', error);
+            }
+        }
+
+        // Function to send a reply/comment
+        function sendReply(postId) {
+            if (!currentUser.id) {
+                 document.getElementById('auth-message').textContent = 'Please log in to reply.';
+                 document.getElementById('auth-modal').style.display = 'flex';
+                 return;
+            }
+            const inputElement = document.getElementById(`reply-input-${postId}`);
+            const content = inputElement.value.trim();
+
+            if (!content) return;
+
+            const commentData = {
+                postId: postId,
+                userId: currentUser.id,
+                username: currentUser.username,
+                content: content,
+                profilePicUrl: currentUser.profilePicUrl // Include profile picture URL
+            };
+
+            socket.emit('newComment', commentData);
+            inputElement.value = ''; // Clear input immediately
+        }
+        // --- 3. SOCKET.IO HANDLERS (UPDATED with Comment Listener) ---
+        socket.on('authSuccess', () => {
+            console.log('Socket authenticated successfully.');
+        });
+        socket.on('authFailed', () => {
+            console.error('Socket authentication failed. Forcing logout.');
+            logoutUser();
+        });
+        socket.on('onlineUsers', (users) => {
+            onlineUsers = users.filter(u => u.userId !== currentUser.id);
+            console.log('Received updated online users list:', onlineUsers);
+            renderOnlineUsers();
+        });
+        socket.on('updateFeed', (post) => {
+            console.log('Received new post for feed:', post);
+            renderPost(post);
+        });
+        socket.on('likeUpdate', (data) => {
+            console.log(`Post ${data.postId} now has ${data.newCount} likes.`);
+            const likeCountSpan = document.getElementById(`likes-${data.postId}`);
+            if (likeCountSpan) {
+                likeCountSpan.textContent = data.newCount;
+                const parentActions = likeCountSpan.closest('.actions');
+                if (parentActions) {
+                     parentActions.style.backgroundColor = 'var(--background-color)';
+                     setTimeout(() => parentActions.style.backgroundColor = 'transparent', 500);
+                }
+            }
+        });
+        // NEW: Real-time comment update listener
+        socket.on('updateComments', (comment) => {
+             console.log('Received new comment:', comment);
+             renderComment(comment);
+        });
+        socket.on('newPrivateMessage', (msg) => {
+            const isRelevantChat = currentRecipient &&
+                                   ((msg.senderId === currentRecipient.userId && msg.recipientId === currentUser.id) ||
+                                   (msg.senderId === currentUser.id && msg.recipientId === currentRecipient.userId));
+
+            if (msg.recipientId === currentUser.id && (!currentRecipient || msg.senderId !== currentRecipient.userId)) {
+                unreadCounts[msg.senderId] = (unreadCounts[msg.senderId] || 0) + 1;
+                renderOnlineUsers();
+            }
+
+            if (isRelevantChat) {
+                 appendMessage(msg, msg.senderId === currentUser.id ? 'sent' : 'received');
+            } else {
+                 console.log('Received message for a different chat, adding to unread count.', msg);
+            }
+        });
+        // --- 4. USER INTERACTION FUNCTIONS (Chat Logic) ---
+        function showSection(sectionId) {
+            if (!currentUser.id) {
+                document.getElementById('auth-message').textContent = 'Please log in to access this page.';
+                document.getElementById('auth-modal').style.display = 'flex';
+                return;
+            }
+            document.getElementById('for-you-feed').style.display = 'none';
+            document.getElementById('private-chat').style.display = 'none';
+            document.getElementById(sectionId).style.display = (sectionId === 'private-chat') ? 'flex' : 'block';
+
+            if (sectionId === 'private-chat') {
+                socket.emit('userOnline', { userId: currentUser.id, username: currentUser.username });
+                renderOnlineUsers();
+            }
+        }
+
+        function toggleUserSidebar() {
+            const sidebar = document.getElementById('online-users-sidebar');
+            const button = document.getElementById('menu-toggle-btn');
+            const isSidebarOpen = sidebar.classList.toggle('open');
+            button.textContent = isSidebarOpen ? '✕' : '☰';
+        }
+
+        function renderOnlineUsers() {
+            const listContainer = document.getElementById('online-users-list');
+            listContainer.innerHTML = '';
+
+            const onlineIds = new Set(onlineUsers.map(u => u.userId));
+            let displayUsers = [...onlineUsers];
+
+            if (currentRecipient && !onlineIds.has(currentRecipient.userId)) {
+                 displayUsers.push({...currentRecipient, isOffline: true });
+            }
+
+            const uniqueUsersMap = new Map();
+            displayUsers.forEach(user => {
+                if (user.userId !== currentUser.id) {
+                    if (!uniqueUsersMap.has(user.userId) || uniqueUsersMap.get(user.userId).isOffline) {
+                        uniqueUsersMap.set(user.userId, user);
+                    }
+                }
+            });
+            const uniqueUsers = Array.from(uniqueUsersMap.values());
+
+            if (uniqueUsers.length === 0) {
+                 listContainer.innerHTML = '<p style="font-size: 0.9em; color: #999;">No other users online yet.</p>';
+                 return;
+            }
+            uniqueUsers.sort((a, b) => {
+                 const aOnline = onlineIds.has(a.userId) && !a.isOffline;
+                 const bOnline = onlineIds.has(b.userId) && !b.isOffline;
+                 const aCount = unreadCounts[a.userId] || 0;
+                 const bCount = unreadCounts[b.userId] || 0;
+
+                 if (aCount > 0 && bCount === 0) return -1;
+                 if (aCount === 0 && bCount > 0) return 1;
+
+                 if (aOnline && !bOnline) return -1;
+                 if (!aOnline && bOnline) return 1;
+
+                 return a.username.localeCompare(b.username);
+            });
+
+            uniqueUsers.forEach(user => {
+                const isOnline = onlineIds.has(user.userId) && !user.isOffline;
+                const statusClass = isOnline ? 'status-online' : 'status-offline';
+                const statusText = isOnline ? 'Online' : 'Offline';
+
+                const count = unreadCounts[user.userId] || 0;
+                const badgeHtml = count > 0 ? `<span class="notification-badge">${count}</span>` : '';
+
+                const userElement = document.createElement('div');
+                userElement.className = 'user-item';
+                if (currentRecipient && currentRecipient.userId === user.userId) {
+                    userElement.style.backgroundColor = '#e6f0ff';
+                }
+                userElement.setAttribute('data-user-id', user.userId);
+                userElement.addEventListener('click', () => startChat(user));
+                userElement.innerHTML = `
+                    <div class="info">
+                        <span>${user.username}</span>
+                        <span class="user-status ${statusClass}" title="${statusText}"></span>
+                    </div>
+                    ${badgeHtml}
+                `;
+                listContainer.appendChild(userElement);
+            });
+
+             if (currentRecipient) {
+                const recipientOnline = onlineUsers.some(u => u.userId === currentRecipient.userId);
+                document.getElementById('chat-recipient-name').textContent =
+                    `${currentRecipient.username} (${recipientOnline ? 'Online' : 'Offline'})`;
+             }
+        }
+
+        async function startChat(recipient) {
+            currentRecipient = recipient;
+
+            unreadCounts[recipient.userId] = 0;
+
+            document.getElementById('chat-recipient-name').textContent = `${recipient.username} (loading...)`;
+            document.getElementById('chat-window').innerHTML = '';
+            document.getElementById('chat-input').disabled = false;
+            // Ensure the send button is enabled
+            document.getElementById('send-btn').disabled = false;
+
+            renderOnlineUsers();
+
+            await loadChatHistory(currentUser.id, recipient.userId, recipient.username);
+
+            if (window.innerWidth <= 768) {
+                document.getElementById('online-users-sidebar').classList.remove('open');
+                document.getElementById('menu-toggle-btn').textContent = '☰';
+            }
+        }
+
+        async function loadChatHistory(senderId, recipientId, recipientUsername) {
+            try {
+                const response = await fetch(`/api/chat/history/${recipientId}?senderId=${senderId}`);
+                const data = await response.json();
+
+                const chatWindow = document.getElementById('chat-window');
+                chatWindow.innerHTML = '';
+                if (response.ok && data.messages.length > 0) {
+                    data.messages.forEach(msg => {
+                        const type = (msg.senderId === senderId) ? 'sent' : 'received';
+                        appendMessage(msg, type, false);
+                    });
+                } else {
+                    chatWindow.innerHTML = `<p style="text-align: center; color: #999;">Start a new conversation with ${recipientUsername}.</p>`;
+                }
+                 const recipientOnline = onlineUsers.some(u => u.userId === recipientId);
+                 document.getElementById('chat-recipient-name').textContent =
+                     `${recipientUsername} (${recipientOnline ? 'Online' : 'Offline'})`;
+
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            } catch (error) {
+                console.error('Error fetching chat history:', error);
+                document.getElementById('chat-window').innerHTML = `<p style="color: red; text-align: center;">Failed to load chat history.</p>`;
+            }
+        }
+
+        function appendMessage(msg, type) {
+            const chatWindow = document.getElementById('chat-window');
+            const isNearBottom = chatWindow.scrollHeight - chatWindow.clientHeight <= chatWindow.scrollTop + 100;
+
+            const msgElement = document.createElement('div');
+            msgElement.className = `message ${type}`;
+
+            msgElement.innerHTML = `
+                <small style="opacity: 0.7; display: block; margin-bottom: 2px; font-style: italic;">
+                    ${new Date(msg.timestamp).toLocaleTimeString()}
+                </small>
+                ${msg.message}
+            `;
+
+            chatWindow.appendChild(msgElement);
+
+            if (isNearBottom) {
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+        }
+
+        function sendPrivateMessage() {
+            if (!currentUser.id) {
+                 document.getElementById('auth-message').textContent = 'Please log in to chat.';
+                 document.getElementById('auth-modal').style.display = 'flex';
+                 return;
+            }
+            if (!currentRecipient) {
+                document.getElementById('auth-message').textContent = 'Please select a user to chat with.';
+                setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
+                return;
+            }
+            const chatInput = document.getElementById('chat-input');
+            const fileInput = document.getElementById('chat-file-upload');
+            const message = chatInput.value.trim();
+
+            if (!message && fileInput.files.length === 0) return;
+
+            const msgData = {
+                senderId: currentUser.id,
+                recipientId: currentRecipient.userId,
+                message: message,
+            };
+
+            // NOTE: Full file transfer is server-dependent, here we just confirm the action
+            if (fileInput.files.length > 0) {
+                 msgData.message += ` [Attached File: ${fileInput.files[0].name}]`;
+                 // Clear the file input after confirming
+                 fileInput.value = '';
+            }
+
+            socket.emit('privateMessage', msgData);
+            chatInput.value = '';
+        }
+
+        // --- CHAT INPUT FUNCTIONALITY ---
+
+        function toggleEmojiPicker() {
+            const picker = document.getElementById('emoji-picker-popover');
+            picker.style.display = picker.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function selectEmoji(event) {
+            const emoji = event.target.getAttribute('data-emoji');
+            if (emoji) {
+                const chatInput = document.getElementById('chat-input');
+                chatInput.value += emoji;
+                chatInput.focus(); // Keep focus for typing
+            }
+        }
+
+        function handleFileButtonClick() {
+            if (!currentRecipient) {
+                 document.getElementById('auth-message').textContent = 'Please select a user to send a file to.';
+                 setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
+                 return;
+            }
+            // Programmatically click the hidden file input
+            document.getElementById('chat-file-upload').click();
+        }
+
+        function handleFileUpload() {
+            const fileInput = document.getElementById('chat-file-upload');
+            if (fileInput.files.length > 0) {
+                document.getElementById('auth-message').textContent = `File selected: ${fileInput.files[0].name}. Press Send to attach.`;
+                setTimeout(() => document.getElementById('auth-message').textContent = '', 4000);
+            }
+        }
+
+        // --- 5. INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- Attach Event Listeners ---
+            document.getElementById('auth-primary-btn').addEventListener('click', function() {
+                const isLogin = currentAuthMode === 'login';
+                isLogin ? loginUser() : signupUser();
+            });
+
+            document.getElementById('auth-toggle-btn').addEventListener('click', toggleAuthMode);
+            document.getElementById('for-you-btn').addEventListener('click', () => showSection('for-you-feed'));
+            document.getElementById('chat-btn').addEventListener('click', () => showSection('private-chat'));
+            document.getElementById('logout-btn').addEventListener('click', logoutUser);
+            document.getElementById('post-story-btn').addEventListener('click', uploadPost);
+            document.getElementById('send-btn').addEventListener('click', sendPrivateMessage);
+            document.getElementById('menu-toggle-btn').addEventListener('click', toggleUserSidebar);
+
+            // Settings Event Listeners
+            document.getElementById('settings-btn').addEventListener('click', toggleSettingsModal);
+            document.getElementById('close-settings-btn').addEventListener('click', toggleSettingsModal);
+            document.getElementById('theme-light-btn').addEventListener('click', () => setTheme('light'));
+            document.getElementById('theme-dark-btn').addEventListener('click', () => setTheme('dark'));
+            document.getElementById('theme-system-btn').addEventListener('click', () => setTheme('system'));
+
+            // NEW: Feed Upload Icon Listener
+             document.getElementById('upload-icon-btn').addEventListener('click', function() {
+                 document.getElementById('photo-upload').click();
+             });
+
+            // Chat Input Functionality Listeners
+            document.getElementById('emoji-btn').addEventListener('click', toggleEmojiPicker);
+            document.querySelectorAll('.emoji-item').forEach(item => {
+                item.addEventListener('click', selectEmoji);
+            });
+
+            document.getElementById('file-btn').addEventListener('click', handleFileButtonClick);
+            document.getElementById('chat-file-upload').addEventListener('change', handleFileUpload);
+
+
+            document.getElementById('chat-input').addEventListener('keypress', function(event) {
+                if (event.key === 'Enter' && !this.disabled) {
+                    sendPrivateMessage();
+                }
+            });
+
+            // --- Initial Checks ---
+            loadInitialTheme(); // Load theme preference immediately
+
+            const storedToken = localStorage.getItem('userToken');
+            const storedUserData = localStorage.getItem('currentUserData');
+            if (storedToken && storedUserData) {
+                try {
+                    const userData = JSON.parse(storedUserData);
+                    document.getElementById('auth-modal').style.display = 'none';
+                    document.getElementById('for-you-feed').style.display = 'block';
+                    document.getElementById('chat-btn').style.display = 'inline-flex';
+                    currentUser.token = storedToken;
+                    currentUser.id = userData.id;
+                    currentUser.username = userData.username;
+                    // Load saved profile pic or use default
+                    currentUser.profilePicUrl = userData.profilePicUrl || currentUser.profilePicUrl;
+                    socket.emit('userOnline', { userId: currentUser.id, username: currentUser.username });
+                    loadFeed();
+                } catch (e) {
+                    console.error("Failed to parse stored user data:", e);
+                    localStorage.removeItem('userToken');
+                    localStorage.removeItem('currentUserData');
+                }
+            } else {
+                document.getElementById('auth-modal').style.display = 'flex';
+                document.getElementById('for-you-feed').style.display = 'none';
+                document.getElementById('chat-btn').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

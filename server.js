@@ -1,6 +1,6 @@
 // --- ENVIRONMENT CONFIGURATION ---
 // 1. Import and run dotenv to load variables from the .env file
-require('dotenv').config();
+
 
 // --- Dependencies ---
 const express = require('express');

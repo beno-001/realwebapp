@@ -1,3 +1,7 @@
+// --- ENVIRONMENT CONFIGURATION ---
+// 1. Import and run dotenv to load variables from the .env file
+require('dotenv').config();
+
 // --- Dependencies ---
 const express = require('express');
 const http = require('http');
@@ -16,7 +20,9 @@ const io = socketIo(server, {
         methods: ["GET", "POST"]
     }
 });
-const PORT = 3000;
+
+// 2. Use process.env for PORT, falling back to 3000 if not set
+const PORT = process.env.PORT || 3000;
 const saltRounds = 10;
 
 // --- Middleware ---

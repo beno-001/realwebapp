@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SupaGram</title>
-    <!-- We are using custom CSS embedded here for a stylish, modern look -->
     <style>
         /* --- Default (Light) Theme Variables --- */
         :root {
@@ -230,18 +229,40 @@
             gap: 15px;
             font-size: 1.1em;
         }
-        .post .like-btn {
+        .post .like-btn, .post .comment-action-btn {
             background: none;
             color: var(--primary-color);
             padding: 5px 10px;
             border: 1px solid var(--primary-color);
             font-weight: 400;
             transition: all 0.2s;
+            /* New: Small icon button style for reply */
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            border-radius: 50%;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
         }
-        .post .like-btn:hover {
+        /* New: Separate style for the full comment button */
+        .post .view-comments-btn {
+            background: none;
+            color: var(--secondary-color);
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            font-weight: 400;
+            font-size: 0.9em;
+        }
+        .post .like-btn:hover, .post .comment-action-btn:hover {
             background-color: var(--primary-color);
             color: white;
         }
+        .dark-mode .post .view-comments-btn {
+            color: var(--text-color);
+            border-color: #4a637a;
+        }
+
 
         /* New: Comments Section Styles */
         .post .comments-section {
@@ -262,23 +283,13 @@
             background: var(--chat-bubble-received);
             padding: 6px 10px;
             border-radius: 12px;
+            max-width: 85%;
         }
         .dark-mode .comment-text {
             background: #34495e;
         }
-        .comment-input-row {
-            display: flex;
-            gap: 5px;
-            margin-top: 10px;
-        }
-        .comment-input-row input {
-            flex-grow: 1;
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid #ddd;
-            background-color: var(--input-background);
-            color: var(--text-color);
-        }
+        /* Removed comment-input-row styles as it's moved to a modal */
+
 
         /* --- Modal/Auth/Settings Styles --- */
         .modal {
@@ -302,12 +313,15 @@
             max-width: 400px;
             text-align: center;
         }
-        .modal-content input {
+        .modal-content input, .modal-content textarea {
             width: calc(100% - 20px);
             padding: 10px;
             margin: 10px 0;
             border: 1px solid #ddd;
             border-radius: 6px;
+            resize: none;
+            background-color: var(--input-background);
+            color: var(--text-color);
         }
         .modal-content button {
             margin-top: 15px;
@@ -591,7 +605,6 @@
 </head>
 <body>
     <div id="app-container">
-        <!-- -------------------- AUTHENTICATION MODAL (Initially Visible) -------------------- -->
         <div id="auth-modal" class="modal">
             <div class="modal-content">
                 <h2 id="auth-title">Welcome Back!</h2>
@@ -604,7 +617,6 @@
             </div>
         </div>
 
-        <!-- -------------------- SETTINGS MODAL (Initially Hidden) -------------------- -->
         <div id="settings-modal" class="modal" style="display: none;">
             <div class="modal-content">
                 <h2>Settings</h2>
@@ -624,67 +636,60 @@
             </div>
         </div>
 
-        <!-- -------------------- MAIN APPLICATION LAYOUT (Initially Hidden) -------------------- -->
+        <div id="reply-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2 id="reply-modal-title">Reply to Post</h2>
+                <div id="reply-post-content" style="text-align: left; margin-bottom: 15px; max-height: 100px; overflow-y: auto; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+                    </div>
+                <textarea id="reply-input" placeholder="Write your reply (max 100 chars)..." maxlength="100" rows="3"></textarea>
+                <button id="post-reply-btn" data-post-id="">Post Reply</button>
+                <button id="close-reply-modal-btn" style="background: #ccc; color: var(--secondary-color); margin-top: 10px;">Cancel</button>
+                <p id="reply-message" style="color: var(--primary-color); margin-top: 15px;"></p>
+            </div>
+        </div>
+
         <header>
             <h1 class="logo">SupaGram</h1>
-            <!-- UPDATED: Navigation now uses icons and responsive layout -->
             <nav>
                 <button id="for-you-btn" title="Feed">F</button>
                 <button id="chat-btn" title="Chat">💬</button>
-                <button id="settings-btn" title="Settings">⚙️</button> <!-- NEW SETTINGS BUTTON -->
-                <button id="logout-btn" title="Logout">🚪</button>
+                <button id="settings-btn" title="Settings">⚙️</button> <button id="logout-btn" title="Logout">🚪</button>
             </nav>
         </header>
         <main id="main-content">
-            <!-- 1. FOR YOU FEED -->
             <section id="for-you-feed" style="display: none;">
                 <h2>Feeds</h2>
-                <!-- UPLOAD SECTION (UPDATED: File input replaced by icon button) -->
                 <div class="upload-box">
-                    <!-- Icon button to trigger hidden file input -->
                     <button id="upload-icon-btn" class="upload-icon-btn" title="Upload Media">
-                         <!-- SVG for Upload/Image -->
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M4 14.899V20a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5.101M16 8l-4-4-4 4M12 4v13"></path>
                         </svg>
                     </button>
-                    <!-- Hidden file input for programmatically opening the file picker -->
                     <input type="file" id="photo-upload" accept="image/*,video/*" style="display: none;">
 
                     <input type="text" id="story-text" placeholder="Write your story/caption..." maxlength="200">
                     <button id="post-story-btn">Post Story</button>
                 </div>
-                <!-- REAL-TIME POSTS WILL APPEAR HERE -->
                 <div id="posts-container" class="feed">
-                    <!-- Posts will be dynamically loaded and updated here -->
-                </div>
+                    </div>
             </section>
-            <!-- 2. PRIVATE CHAT -->
             <section id="private-chat" style="display:none;">
-                <!-- Sidebar for Users (Online/Offline) - Toggled by Hamburger on Mobile -->
                 <div id="online-users-sidebar">
                     <h3>Users</h3>
                     <div id="online-users-list">
-                        <!-- User list dynamically populated here -->
                         <p style="font-size: 0.9em; color: #999;">Waiting for users...</p>
                     </div>
                 </div>
-                <!-- Main Chat Window -->
                 <div id="chat-main">
                     <div class="chat-header">
-                        <!-- Hamburger Icon for Mobile -->
                         <button id="menu-toggle-btn" class="hamburger-btn">☰</button>
                         <h3 id="chat-recipient-name" style="color:blue">Select a user to chat...</h3>
                     </div>
 
-                    <!-- Scrolling Message Area -->
                     <div id="chat-window">
-                        <!-- Messages go here -->
-                    </div>
+                        </div>
 
-                    <!-- Fixed Input Area - This is outside the scrolling chat-window -->
                     <div class="chat-input-wrapper">
-                        <!-- NEW: Simple Emoji Picker Popover -->
                         <div id="emoji-picker-popover">
                             <div class="emoji-grid">
                                 <span class="emoji-item" data-emoji="😀">😀</span>
@@ -708,11 +713,8 @@
                             </div>
                         </div>
 
-                        <!-- MODIFIED: Chat input row with icon buttons for File, Emoji, and Send -->
                         <div class="chat-input-row">
-                            <!-- Emoji Button (uses new chat-icon-btn class) -->
                             <button id="emoji-btn" class="chat-icon-btn" title="Emojis">
-                                <!-- Smile Icon SVG -->
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto">
                                     <circle cx="12" cy="12" r="10"></circle>
                                     <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
@@ -720,21 +722,16 @@
                                     <line x1="15" y1="9" x2="15.01" y2="9"></line>
                                 </svg>
                             </button>
-                            <!-- File Button (uses new chat-icon-btn class) -->
                             <button id="file-btn" class="chat-icon-btn" title="Attach File">
-                                <!-- Paperclip Icon SVG -->
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto">
                                     <path d="M15 7l-6.3 6.3a4.9 4.9 0 0 0 7 7L21 17"></path>
                                     <path d="M9 15l6.3-6.3a4.9 4.9 0 0 0-7-7L3 7"></path>
                                 </svg>
                             </button>
-                            <!-- Hidden file input for programmatically opening the file picker -->
                             <input type="file" id="chat-file-upload" style="display: none;" accept="image/*, .pdf, .txt, .zip">
 
                             <input type="text" id="chat-input" placeholder="Type a message..." disabled>
-                            <!-- Send Button (now uses send-icon-btn class and an SVG icon) -->
                             <button id="send-btn" disabled class="send-icon-btn" title="Send">
-                                <!-- Paper Plane Icon SVG -->
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto transform rotate-45 -mt-1 -mr-0.5">
                                     <line x1="22" y1="2" x2="11" y2="13"></line>
                                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -746,7 +743,6 @@
             </section>
         </main>
     </div>
-    <!-- Socket.IO client library -->
     <script src="/socket.io/socket.io.js"></script>
     <script>
         // --- GLOBAL STATE ---
@@ -757,7 +753,7 @@
             username: null,
             token: null,
             // NEW: Default profile picture placeholder
-            profilePicUrl: ''
+            profilePicUrl: 'https://placehold.co/40x40/FF385C/FFFFFF?text=P' // Default placeholder
         };
         let onlineUsers = []; // Stores only currently online users (from socket broadcasts)
         let currentRecipient = null; // Stores { userId, username } of the currently selected chat partner
@@ -940,22 +936,18 @@
                 <div class="actions">
                     <span class="likes-count" id="likes-${post.id}">${post.likesCount || 0}</span> Likes
                     <button class="like-btn" onclick="sendLike('${post.id}')">❤️</button>
+                    <span class="comments-count" id="comments-count-${post.id}">${post.commentsCount || 0}</span> Replies
+                    <button class="comment-action-btn" title="Reply" onclick="openReplyModal('${post.id}', '${post.username}', '${post.content}', '${post.media_url}')">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                    </button>
+                    <button class="view-comments-btn" id="view-comments-btn-${post.id}" onclick="toggleCommentsSection('${post.id}')" style="display:none;">View Replies</button>
                 </div>
-                <!-- NEW: Comments Section -->
-                <div class="comments-section">
+                <div class="comments-section" id="comments-section-${post.id}" style="display:none;">
                     <h4>Replies</h4>
                     <div id="comments-container-${post.id}">
                         <p style="font-size: 0.8em; color: #888;">Loading replies...</p>
-                    </div>
-                    <div class="comment-input-row">
-                        <input type="text" id="reply-input-${post.id}" placeholder="Write a reply..." maxlength="100">
-                        <!-- Use the send icon button for replies -->
-                        <button class="send-icon-btn" onclick="sendReply('${post.id}')" style="width: 38px; height: 38px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto transform rotate-45 -mt-1 -mr-0.5">
-                                <line x1="22" y1="2" x2="11" y2="13"></line>
-                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                            </svg>
-                        </button>
                     </div>
                 </div>
             `;
@@ -999,8 +991,10 @@
                 });
                 const data = await response.json();
                 if (response.ok && data.success) {
-                    socket.emit('newPost', data.post);
-                    renderPost(data.post);
+                    // Include commentsCount in the new post object for initial rendering
+                    const newPost = { ...data.post, commentsCount: 0 };
+                    socket.emit('newPost', newPost);
+                    renderPost(newPost);
                     document.getElementById('story-text').value = '';
                     fileInput.value = '';
                     document.getElementById('auth-message').textContent = 'Post submitted successfully!';
@@ -1026,6 +1020,33 @@
         }
         // --- NEW: COMMENT/REPLY LOGIC ---
 
+        function openReplyModal(postId, username, content, mediaUrl) {
+            if (!currentUser.id) {
+                 document.getElementById('auth-message').textContent = 'Please log in to reply.';
+                 document.getElementById('auth-modal').style.display = 'flex';
+                 return;
+            }
+            const modal = document.getElementById('reply-modal');
+            const replyContent = document.getElementById('reply-post-content');
+            const postReplyBtn = document.getElementById('post-reply-btn');
+
+            // Set the post ID on the modal button
+            postReplyBtn.setAttribute('data-post-id', postId);
+
+            // Construct the post snippet for the modal
+            const mediaHtml = mediaUrl ? `<img src="${mediaUrl}" alt="Media" style="max-width:100%; height: auto; border-radius: 6px; margin-top: 5px;">` : '';
+
+            replyContent.innerHTML = `
+                <strong>${username}</strong>: ${content}
+                ${mediaHtml}
+            `;
+
+            document.getElementById('reply-input').value = '';
+            document.getElementById('reply-message').textContent = '';
+            modal.style.display = 'flex';
+            document.getElementById('reply-input').focus();
+        }
+
         // Function to render a single comment
         function renderComment(comment) {
             const container = document.getElementById(`comments-container-${comment.postId}`);
@@ -1036,6 +1057,9 @@
             if (noReplies && noReplies.textContent.includes('No replies yet')) {
                  container.innerHTML = '';
             }
+
+            // Show the View Comments button once a comment is added
+            document.getElementById(`view-comments-btn-${comment.postId}`).style.display = 'inline-block';
 
             const commentElement = document.createElement('div');
             commentElement.className = 'comment-item';
@@ -1054,33 +1078,43 @@
         // Function to load existing comments for a post
         async function loadComments(postId) {
             try {
+                // NOTE: This API route needs to be implemented in server.js!
                 const response = await fetch(`/api/comments/${postId}`);
                 if (response.ok) {
                     const data = await response.json();
                     const container = document.getElementById(`comments-container-${postId}`);
                     if (container) {
                         container.innerHTML = ''; // Clear existing comments
-                        data.comments.forEach(renderComment);
-                        if (data.comments.length === 0) {
+                        data.comments.forEach(c => renderComment({ ...c, postId })); // Pass postId to renderComment
+
+                        const viewBtn = document.getElementById(`view-comments-btn-${postId}`);
+                        if (data.comments.length > 0) {
+                            container.style.display = 'none'; // Keep hidden initially
+                            viewBtn.style.display = 'inline-block';
+                            viewBtn.textContent = `View all ${data.comments.length} replies`;
+
+                            // Update the comments count span
+                            const countSpan = document.getElementById(`comments-count-${postId}`);
+                            if (countSpan) countSpan.textContent = data.comments.length;
+                        } else {
                              container.innerHTML = '<p style="font-size: 0.8em; color: #888;">No replies yet.</p>';
+                             viewBtn.style.display = 'none';
                         }
                     }
                 } else {
                     console.error('Failed to load comments:', response.status);
+                    document.getElementById(`comments-container-${postId}`).innerHTML = '<p style="font-size: 0.8em; color: #888;">Could not load replies.</p>';
                 }
             } catch (error) {
                 console.error('Error fetching comments:', error);
             }
         }
 
-        // Function to send a reply/comment
-        function sendReply(postId) {
-            if (!currentUser.id) {
-                 document.getElementById('auth-message').textContent = 'Please log in to reply.';
-                 document.getElementById('auth-modal').style.display = 'flex';
-                 return;
-            }
-            const inputElement = document.getElementById(`reply-input-${postId}`);
+        // Function to send a reply/comment (from the Modal)
+        function sendReplyFromModal() {
+            const postReplyBtn = document.getElementById('post-reply-btn');
+            const postId = postReplyBtn.getAttribute('data-post-id');
+            const inputElement = document.getElementById('reply-input');
             const content = inputElement.value.trim();
 
             if (!content) return;
@@ -1093,8 +1127,28 @@
                 profilePicUrl: currentUser.profilePicUrl // Include profile picture URL
             };
 
+            // NOTE: The server.js implementation needs to handle saving this comment
             socket.emit('newComment', commentData);
             inputElement.value = ''; // Clear input immediately
+
+            // Provide immediate feedback and close modal
+            document.getElementById('reply-message').textContent = 'Reply posted!';
+            setTimeout(() => document.getElementById('reply-modal').style.display = 'none', 500);
+        }
+
+        // Function to toggle comments visibility
+        function toggleCommentsSection(postId) {
+            const section = document.getElementById(`comments-section-${postId}`);
+            const button = document.getElementById(`view-comments-btn-${postId}`);
+            const isVisible = section.style.display === 'block';
+
+            if (isVisible) {
+                section.style.display = 'none';
+                button.textContent = `View all ${document.getElementById(`comments-container-${postId}`).childElementCount} replies`;
+            } else {
+                section.style.display = 'block';
+                button.textContent = 'Hide replies';
+            }
         }
         // --- 3. SOCKET.IO HANDLERS (UPDATED with Comment Listener) ---
         socket.on('authSuccess', () => {
@@ -1129,6 +1183,11 @@
         socket.on('updateComments', (comment) => {
              console.log('Received new comment:', comment);
              renderComment(comment);
+             // Also update the count span
+             const countSpan = document.getElementById(`comments-count-${comment.postId}`);
+             if (countSpan) {
+                 countSpan.textContent = (parseInt(countSpan.textContent) || 0) + 1;
+             }
         });
         socket.on('newPrivateMessage', (msg) => {
             const isRelevantChat = currentRecipient &&
@@ -1401,6 +1460,18 @@
             document.getElementById('theme-light-btn').addEventListener('click', () => setTheme('light'));
             document.getElementById('theme-dark-btn').addEventListener('click', () => setTheme('dark'));
             document.getElementById('theme-system-btn').addEventListener('click', () => setTheme('system'));
+
+            // NEW: Reply Modal Event Listeners
+            document.getElementById('close-reply-modal-btn').addEventListener('click', () => document.getElementById('reply-modal').style.display = 'none');
+            document.getElementById('post-reply-btn').addEventListener('click', sendReplyFromModal);
+
+            document.getElementById('reply-input').addEventListener('keypress', function(event) {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault(); // Prevent newline
+                    sendReplyFromModal();
+                }
+            });
+
 
             // NEW: Feed Upload Icon Listener
              document.getElementById('upload-icon-btn').addEventListener('click', function() {

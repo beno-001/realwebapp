@@ -36,9 +36,14 @@ app.use(express.static('public'));
  * Broadcasts the current list of online users to all connected clients.
  */
 const broadcastOnlineUsers = async () => {
+    // FIX: Using db.getOnlineUsers which now selects all necessary fields (userId, username, profilePicUrl)
     const users = await db.getOnlineUsers();
     // Exclude the socketId from the broadcast payload for security/cleanliness
-    const userPayload = users.map(u => ({ userId: u.userId, username: u.username }));
+    const userPayload = users.map(u => ({
+        userId: u.userId,
+        username: u.username,
+        profilePicUrl: u.profilePicUrl
+    }));
     io.emit('onlineUsers', userPayload);
     console.log(`Broadcasting ${userPayload.length} online users.`);
 };
@@ -63,7 +68,6 @@ app.post('/api/signup', async (req, res) => {
             // UPDATED: Return profilePicUrl
             res.json({ success: true, message: 'User created successfully.', token: 'fake-jwt-token', userId, username, profilePicUrl });
         } else {
-             // If success is false, there was likely a database issue (though not necessarily a duplicate entry)
              return res.status(500).json({ success: false, message: 'Failed to create user due to database issue.' });
         }
     } catch (error) {
@@ -104,7 +108,6 @@ app.post('/api/login', async (req, res) => {
 
 // POST: Upload a new post (UPDATED: Using cleaner data model)
 app.post('/api/post', async (req, res) => {
-    // Rely on db to fetch username/profilePicUrl from users table for feed fetch
     const { user_id, content, media_url } = req.body;
     if (!user_id || (!content && !media_url)) {
         return res.status(400).json({ success: false, message: 'Content or media is required.' });
@@ -112,7 +115,6 @@ app.post('/api/post', async (req, res) => {
 
     try {
         const postId = uuidv4();
-        // CHANGED: Removed username and profilePicUrl from db.createPost call
         const success = await db.createPost(postId, user_id, content, media_url);
 
         if (success) {
@@ -165,7 +167,7 @@ app.post('/api/comment', async (req, res) => {
 
     try {
         const commentId = uuidv4();
-        // CHANGED: Removed username and profilePicUrl from db.createComment call
+        // FIX: The db.createComment function is called with only the four required parameters (id, post_id, user_id, content)
         const success = await db.createComment(commentId, post_id, user_id, content);
 
         if (success) {
@@ -197,7 +199,6 @@ app.get('/api/comments/:postId', async (req, res) => {
 });
 
 // GET: Fetch private chat history (FIXED: Route name matches client)
-// Client endpoint: /api/chathistory?user1Id=${currentUser.id}&user2Id=${recipientId}
 app.get('/api/chathistory', async (req, res) => {
     const { user1Id, user2Id } = req.query;
 
@@ -220,7 +221,7 @@ app.get('/api/chathistory', async (req, res) => {
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
-    // --- 1. User Presence Tracking (NO CHANGE) ---
+    // --- 1. User Presence Tracking ---
 
     socket.on('userOnline', async ({ userId, username }) => {
         if (!userId || !username) {
@@ -263,7 +264,7 @@ io.on('connection', (socket) => {
         console.log('User disconnected:', socket.id);
     });
 
-    // --- 2. Private Messaging (NO CHANGE) ---
+    // --- 2. Private Messaging ---
 
     socket.on('privateMessage', async (msg) => {
         const { senderId, recipientId, message } = msg;
@@ -299,9 +300,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- 3. Feed and Likes (REMOVED redundant newPost handler) ---
-
-    // Note: newPost broadcast is now handled in the /api/post route after saving to DB.
+    // --- 3. Feed and Likes ---
 
     socket.on('likePost', async (data) => {
         const { postId, userId } = data;

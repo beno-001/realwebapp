@@ -36,6 +36,7 @@ const query = async (sql, params) => {
         console.error("Database Query Error:", error.code, error.sqlMessage);
         console.error("SQL:", sql);
         console.error("Params:", params);
+        // The error message is returned from server.js to the client if the query fails
         throw new Error('Could not execute database query.');
     }
 };
@@ -65,7 +66,6 @@ const createUser = async (userId, email, passwordHash, username, profilePicUrl =
 // --- POST AND INTERACTION FUNCTIONS ---
 
 const createPost = async (postId, userId, content, mediaUrl) => {
-    // UPDATED: Removed username/profilePicUrl from INSERT (rely on users table)
     const result = await query(
         'INSERT INTO posts (id, user_id, content, media_url) VALUES (?, ?, ?, ?)',
         [postId, userId, content, mediaUrl]
@@ -116,11 +116,11 @@ const getLikeCount = async (postId) => {
 };
 
 
-// --- NEW: COMMENT FUNCTIONS ---
+// --- COMMENT FUNCTIONS ---
 
 const createComment = async (commentId, postId, userId, content) => {
+    // FIX CONFIRMED: Ensures 4 columns are inserted with 4 placeholders
     const result = await query(
-        // Rely on join with users table for username and profile pic on fetch
         'INSERT INTO comments (id, post_id, user_id, content) VALUES (?, ?, ?, ?)',
         [commentId, postId, userId, content]
     );
@@ -144,6 +144,8 @@ const getCommentsByPostId = async (postId) => {
 
 // ONLINE USERS (No Change)
 const setOnlineStatus = async (userId, username, socketId) => {
+    // Note: The online_users table may need a profile_pic_url column for full user info broadcast,
+    // but for now, we rely on the client's cached data or separate fetches.
     const sql = `
         INSERT INTO online_users (userId, username, socketId)
         VALUES (?, ?, ?)
@@ -161,6 +163,8 @@ const removeOnlineStatusByUserId = async (userId) => {
 };
 
 const getOnlineUsers = async () => {
+    // For a more complete user broadcast, you might JOIN users here to get profilePicUrl
+    // For simplicity, we are relying on the original minimal implementation:
     return await query('SELECT userId, username, socketId FROM online_users');
 };
 
@@ -210,7 +214,7 @@ module.exports = {
     savePrivateMessage,
     getChatHistory,
     getRecipientSocketId,
-    createComment, // NEW
-    getCommentsByPostId, // NEW
+    createComment,
+    getCommentsByPostId,
     query
 };

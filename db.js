@@ -40,53 +40,63 @@ const query = async (sql, params) => {
     }
 };
 
-// --- USER MANAGEMENT FUNCTIONS (Updated for Profile Pic) ---
+// --- USER MANAGEMENT FUNCTIONS ---
 
 const findUserByEmail = async (email) => {
-    // UPDATED: Select 'profile_pic_url' to be used in the client
+    // UPDATED: Selecting 'profile_pic_url'
     const rows = await query('SELECT user_id, password_hash, username, profile_pic_url FROM users WHERE email = ?', [email]);
+    if (rows[0]) {
+        // Map the snake_case column to camelCase for consistency in the server logic
+        rows[0].profilePicUrl = rows[0].profile_pic_url;
+        delete rows[0].profile_pic_url;
+    }
     return rows[0]; // Returns the first user or undefined
 };
 
-const createUser = async (userId, email, passwordHash, username) => {
-    // UPDATED: Include 'profile_pic_url' with a NULL default value
+const createUser = async (userId, email, passwordHash, username, profilePicUrl = null) => {
+    // UPDATED: Added profile_pic_url column
     const result = await query(
         'INSERT INTO users (user_id, email, password_hash, username, profile_pic_url) VALUES (?, ?, ?, ?, ?)',
-        [userId, email, passwordHash, username, null] // null or a default image URL
+        [userId, email, passwordHash, username, profilePicUrl]
     );
     return result.affectedRows > 0;
 };
 
 // --- POST AND INTERACTION FUNCTIONS ---
 
-const createPost = async (postId, userId, username, content, mediaUrl) => {
-    // FIX: Explicitly inserting the pre-generated 'id' UUID
+const createPost = async (postId, userId, content, mediaUrl) => {
+    // UPDATED: Removed username/profilePicUrl from INSERT (rely on users table)
     const result = await query(
-        'INSERT INTO posts (id, user_id, username, content, media_url) VALUES (?, ?, ?, ?, ?)',
-        [postId, userId, username, content, mediaUrl]
+        'INSERT INTO posts (id, user_id, content, media_url) VALUES (?, ?, ?, ?)',
+        [postId, userId, content, mediaUrl]
     );
     return result.affectedRows > 0;
 };
 
 const getAllPosts = async () => {
-    // FIX: Joining on u.user_id and calculating likesCount via LEFT JOIN on 'likes' table
-    // NOTE: If you want the post author's profile pic, you'd add u.profile_pic_url here.
+    // UPDATED: Joining 'users' to get the latest username and profile picture URL
     const querySQL = `
         SELECT
-            p.*,
+            p.id, p.user_id, p.content, p.media_url, p.created_at,
             u.username,
+            u.profile_pic_url AS profilePicUrl,
             COUNT(l.user_id) AS likesCount
         FROM posts p
         JOIN users u ON p.user_id = u.user_id
         LEFT JOIN likes l ON p.id = l.post_id
-        GROUP BY p.id, p.user_id, p.created_at, p.content, p.media_url, u.username
+        GROUP BY p.id
         ORDER BY p.created_at DESC
         LIMIT 20
     `;
-    return await query(querySQL);
+    const posts = await query(querySQL);
+    // Ensure likesCount is an integer
+    return posts.map(post => ({
+        ...post,
+        likesCount: parseInt(post.likesCount, 10),
+    }));
 };
 
-// LIKES
+// LIKES (No Change)
 const getLike = async (postId, userId) => {
     const rows = await query('SELECT 1 FROM likes WHERE post_id = ? AND user_id = ?', [postId, userId]);
     return rows[0];
@@ -106,26 +116,24 @@ const getLikeCount = async (postId) => {
 };
 
 
-// --- COMMENT MANAGEMENT FUNCTIONS (NEW) ---
+// --- NEW: COMMENT FUNCTIONS ---
 
-const addComment = async (id, postId, userId, username, content) => {
+const createComment = async (commentId, postId, userId, content) => {
     const result = await query(
-        'INSERT INTO comments (id, post_id, user_id, username, content) VALUES (?, ?, ?, ?, ?)',
-        [id, postId, userId, username, content]
+        // Rely on join with users table for username and profile pic on fetch
+        'INSERT INTO comments (id, post_id, user_id, content) VALUES (?, ?, ?, ?)',
+        [commentId, postId, userId, content]
     );
     return result.affectedRows > 0;
 };
 
 const getCommentsByPostId = async (postId) => {
+    // Joining 'users' to get the latest username and profile picture URL
     const sql = `
         SELECT
-            c.id,
-            c.post_id AS postId,
-            c.user_id AS userId,
-            c.username,
-            c.content,
-            c.created_at,
-            u.profile_pic_url -- Include profile pic for comments
+            c.id, c.post_id, c.user_id, c.content, c.created_at,
+            u.username,
+            u.profile_pic_url AS profilePicUrl
         FROM comments c
         JOIN users u ON c.user_id = u.user_id
         WHERE c.post_id = ?
@@ -134,13 +142,7 @@ const getCommentsByPostId = async (postId) => {
     return await query(sql, [postId]);
 };
 
-const getCommentCount = async (postId) => {
-    const rows = await query('SELECT COUNT(id) AS count FROM comments WHERE post_id = ?', [postId]);
-    return rows[0] ? rows[0].count : 0;
-};
-
-
-// ONLINE USERS (Updated for Profile Pic)
+// ONLINE USERS (No Change)
 const setOnlineStatus = async (userId, username, socketId) => {
     const sql = `
         INSERT INTO online_users (userId, username, socketId)
@@ -159,20 +161,10 @@ const removeOnlineStatusByUserId = async (userId) => {
 };
 
 const getOnlineUsers = async () => {
-    // UPDATED: Join with 'users' table to fetch the 'profile_pic_url'
-    const sql = `
-        SELECT
-            ou.userId,
-            ou.username,
-            ou.socketId,
-            u.profile_pic_url
-        FROM online_users ou
-        JOIN users u ON ou.userId = u.user_id
-    `;
-    return await query(sql);
+    return await query('SELECT userId, username, socketId FROM online_users');
 };
 
-// PRIVATE MESSAGES
+// PRIVATE MESSAGES (No Change)
 const savePrivateMessage = async (senderId, recipientId, message) => {
     const result = await query(
         'INSERT INTO messages (sender_id, recipient_id, message_text) VALUES (?, ?, ?)',
@@ -182,7 +174,6 @@ const savePrivateMessage = async (senderId, recipientId, message) => {
 };
 
 const getChatHistory = async (senderId, recipientId) => {
-    // FIX: Selecting message_id and created_at to match schema
     const sql = `
         SELECT
             message_id,
@@ -212,9 +203,6 @@ module.exports = {
     addLike,
     removeLike,
     getLikeCount,
-    addComment, // NEW
-    getCommentsByPostId, // NEW
-    getCommentCount, // NEW
     setOnlineStatus,
     removeOnlineStatusBySocketId,
     removeOnlineStatusByUserId,
@@ -222,5 +210,7 @@ module.exports = {
     savePrivateMessage,
     getChatHistory,
     getRecipientSocketId,
+    createComment, // NEW
+    getCommentsByPostId, // NEW
     query
 };

@@ -1,82 +1,83 @@
-// server.js - Ready to Paste Code
+// --- ENVIRONMENT CONFIGURATION ---
+// 1. Import and run dotenv to load variables from the .env file
 
+
+// --- Dependencies ---
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
-const session = require('express-session');
+const socketIo = require('socket.io');
 const bcrypt = require('bcrypt');
-const { v4: uuidv4 } = require('uuid');
-const db = require('./db'); // The updated db.js
-const path = require('path');
+const { v4: uuidv4 } = require('uuid'); // Production-ready UUID for IDs
+const db = require('./db'); // Import the new MySQL database module
+
+// Install this package: npm install uuid
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
-
-// --- Middleware and Configuration ---
-app.use(express.static('public'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Session setup
-const sessionMiddleware = session({
-    secret: 'a_very_secret_key_for_realtime_app',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { secure: false }
-});
-app.use(sessionMiddleware);
-
-// Make session available to Socket.IO
-io.engine.use(sessionMiddleware);
-
-// --- AUTHENTICATION ROUTES ---
-
-const isAuthenticated = (req, res, next) => {
-    if (req.session.user) {
-        next();
-    } else {
-        res.status(401).json({ success: false, message: 'Not authenticated' });
+const io = socketIo(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
     }
+});
+
+// 2. Use process.env for PORT, falling back to 3000 if not set
+const PORT = process.env.PORT || 3000;
+const saltRounds = 10;
+
+// --- Middleware ---
+app.use(express.json());
+// Assuming 'public' contains index.html, otherwise remove the 'public' if index.html is in the root
+app.use(express.static('public'));
+
+// --- Helper Functions ---
+
+/**
+ * Broadcasts the current list of online users to all connected clients.
+ */
+const broadcastOnlineUsers = async () => {
+    const users = await db.getOnlineUsers();
+    // Exclude the socketId from the broadcast payload for security/cleanliness
+    const userPayload = users.map(u => ({ userId: u.userId, username: u.username }));
+    io.emit('onlineUsers', userPayload);
+    console.log(`Broadcasting ${userPayload.length} online users.`);
 };
 
-app.post('/register', async (req, res) => {
-    // UPDATED: Destructure profilePicUrl from the request body
-    const { email, password, username, profilePicUrl } = req.body;
 
+// --- API Routes ---
+
+// AUTH: Signup endpoint (UPDATED: Handle profilePicUrl)
+app.post('/api/signup', async (req, res) => {
+    const { email, password, username, profilePicUrl } = req.body;
     if (!email || !password || !username) {
         return res.status(400).json({ success: false, message: 'All fields are required.' });
     }
 
     try {
-        const existingUser = await db.findUserByEmail(email);
-        if (existingUser) {
-            return res.status(409).json({ success: false, message: 'Email already registered.' });
-        }
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+        const userId = uuidv4(); // Use production-ready UUID
 
-        const userId = uuidv4();
-        const passwordHash = await bcrypt.hash(password, 10);
-
-        // Use db.createUser with the profilePicUrl (or null if empty)
-        // NOTE: The profilePicUrl argument is now expected by the updated db.js createUser function.
-        // Since db.js was updated to use 'NULL' if not provided, we pass the value.
-        const success = await db.createUser(userId, email, passwordHash, username, profilePicUrl || null);
+        const success = await db.createUser(userId, email, hashedPassword, username, profilePicUrl);
 
         if (success) {
-            res.json({ success: true, message: 'Registration successful. Please log in.' });
+            // UPDATED: Return profilePicUrl
+            res.json({ success: true, message: 'User created successfully.', token: 'fake-jwt-token', userId, username, profilePicUrl });
         } else {
-            res.status(500).json({ success: false, message: 'Registration failed.' });
+             // If success is false, there was likely a database issue (though not necessarily a duplicate entry)
+             return res.status(500).json({ success: false, message: 'Failed to create user due to database issue.' });
         }
-    } catch (err) {
-        console.error('Registration error:', err);
-        res.status(500).json({ success: false, message: 'Server error during registration.' });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ success: false, message: 'Email or Username already taken.' });
+        }
+        console.error('Signup error:', error);
+        res.status(500).json({ success: false, message: 'Server error.' });
     }
 });
 
-
-app.post('/login', async (req, res) => {
+// AUTH: Login endpoint (UPDATED: Return profilePicUrl)
+app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
-
     if (!email || !password) {
         return res.status(400).json({ success: false, message: 'Email and password are required.' });
     }
@@ -84,238 +85,246 @@ app.post('/login', async (req, res) => {
     try {
         const user = await db.findUserByEmail(email);
 
-        if (user && await bcrypt.compare(password, user.password_hash)) {
-            // Store essential user info (including profile pic URL) in the session
-            req.session.user = {
-                id: user.user_id,
-                username: user.username,
-                profilePicUrl: user.profile_pic_url
-            };
-            // Return profilePicUrl to the client
-            res.json({ success: true, username: user.username, profilePicUrl: user.profile_pic_url, userId: user.user_id });
-        } else {
-            res.status(401).json({ success: false, message: 'Invalid email or password.' });
+        if (!user) {
+            return res.status(401).json({ success: false, message: 'Invalid credentials.' });
         }
-    } catch (err) {
-        console.error('Login error:', err);
+
+        const match = await bcrypt.compare(password, user.password_hash);
+        if (match) {
+            // UPDATED: Return profilePicUrl
+            res.json({ success: true, message: 'Login successful.', token: 'fake-jwt-token', userId: user.user_id, username: user.username, profilePicUrl: user.profilePicUrl });
+        } else {
+            res.status(401).json({ success: false, message: 'Invalid credentials.' });
+        }
+    } catch (error) {
+        console.error('Login error:', error);
         res.status(500).json({ success: false, message: 'Server error during login.' });
     }
 });
 
-app.post('/logout', (req, res) => {
-    if (req.session.user) {
-        req.session.destroy(err => {
-            if (err) {
-                console.error('Session destroy error:', err);
-                return res.status(500).json({ success: false, message: 'Could not log out.' });
-            }
-            res.json({ success: true, message: 'Logged out successfully.' });
-        });
-    } else {
-        res.json({ success: true, message: 'Already logged out.' });
-    }
-});
-
-app.get('/check-auth', (req, res) => {
-    if (req.session.user) {
-        // Send profilePicUrl on auth check
-        res.json({ success: true, user: { id: req.session.user.id, username: req.session.user.username, profilePicUrl: req.session.user.profilePicUrl } });
-    } else {
-        res.json({ success: false });
-    }
-});
-
-// --- POST ROUTES ---
-
-// NEW: Endpoint to get comment count (for initial feed loading)
-app.get('/api/posts/:postId/comments/count', isAuthenticated, async (req, res) => {
-    try {
-        const count = await db.getCommentCount(req.params.postId);
-        res.json({ success: true, count: count });
-    } catch (err) {
-        console.error('Error fetching comment count:', err);
-        res.status(500).json({ success: false, message: 'Failed to fetch comment count.' });
-    }
-});
-
-app.get('/api/posts', isAuthenticated, async (req, res) => {
-    try {
-        const posts = await db.getAllPosts();
-        res.json({ success: true, posts });
-    } catch (err) {
-        console.error('Error fetching posts:', err);
-        res.status(500).json({ success: false, message: 'Failed to fetch posts.' });
-    }
-});
-
-app.post('/api/posts', isAuthenticated, async (req, res) => {
-    const { content, mediaUrl } = req.body;
-    const { id: userId, username } = req.session.user;
-
-    if (!content && !mediaUrl) {
-        return res.status(400).json({ success: false, message: 'Post must have content or media.' });
+// POST: Upload a new post (UPDATED: Using cleaner data model)
+app.post('/api/post', async (req, res) => {
+    // Rely on db to fetch username/profilePicUrl from users table for feed fetch
+    const { user_id, content, media_url } = req.body;
+    if (!user_id || (!content && !media_url)) {
+        return res.status(400).json({ success: false, message: 'Content or media is required.' });
     }
 
     try {
         const postId = uuidv4();
-        const success = await db.createPost(postId, userId, username, content, mediaUrl);
+        // CHANGED: Removed username and profilePicUrl from db.createPost call
+        const success = await db.createPost(postId, user_id, content, media_url);
 
         if (success) {
-            // Construct the post object to broadcast
-            const newPost = {
-                id: postId,
-                user_id: userId,
-                username: username,
-                content: content,
-                media_url: mediaUrl,
-                created_at: new Date().toISOString(),
-                likesCount: 0,
-                // Add the user's profile pic url for the client to render
-                profile_pic_url: req.session.user.profilePicUrl
-            };
-            io.emit('newPost', newPost);
-            res.json({ success: true, post: newPost });
+            // Re-destructure from req.body for *immediate* socket broadcast
+            const { username, profilePicUrl } = req.body;
+            const newPost = { id: postId, user_id, username, content, media_path: media_url, likesCount: 0, profilePicUrl };
+            io.emit('updateFeed', newPost); // Broadcast the new post to all connected clients
+            res.json({ success: true, message: 'Post created.', post: newPost });
         } else {
-            res.status(500).json({ success: false, message: 'Post creation failed.' });
+            return res.status(500).json({ success: false, message: 'Failed to create post.' });
         }
-    } catch (err) {
-        console.error('Error creating post:', err);
-        res.status(500).json({ success: false, message: 'Server error during post creation.' });
+    } catch (error) {
+        console.error('Post creation error:', error);
+        res.status(500).json({ success: false, message: 'Database error creating post.' });
     }
 });
 
-// --- SOCKET.IO LOGIC ---
+// GET: Fetch all posts for the feed (UPDATED: Check for user's like status)
+app.get('/api/posts', async (req, res) => {
+    const { userId } = req.query;
+    if (!userId) {
+        return res.status(400).json({ success: false, message: 'User ID is required.' });
+    }
+    try {
+        const rawPosts = await db.getAllPosts();
+        // Map posts to determine if the current user has liked it
+        const posts = await Promise.all(rawPosts.map(async post => {
+            const hasLiked = await db.getLike(post.id, userId);
+            return {
+                ...post,
+                id: post.id,
+                isLiked: !!hasLiked,
+                like_count: parseInt(post.likesCount)
+            };
+        }));
+        res.json({ success: true, posts });
+    } catch (error) {
+        console.error('Feed fetch error:', error);
+        res.status(500).json({ success: false, message: 'Database error fetching posts.' });
+    }
+});
+
+// NEW: POST: Save a comment
+app.post('/api/comment', async (req, res) => {
+    // Keeping username/profilePicUrl in req.body for socket broadcast, but not saving to comment table
+    const { post_id, user_id, content } = req.body;
+    if (!post_id || !user_id || !content) {
+        return res.status(400).json({ success: false, message: 'Post ID, User ID, and Content are required.' });
+    }
+
+    try {
+        const commentId = uuidv4();
+        // CHANGED: Removed username and profilePicUrl from db.createComment call
+        const success = await db.createComment(commentId, post_id, user_id, content);
+
+        if (success) {
+            // Re-destructure from req.body for socket broadcast
+            const { username, profilePicUrl } = req.body;
+            const newComment = { id: commentId, post_id, user_id, username, content, profilePicUrl, created_at: new Date().toISOString() };
+            io.emit('commentUpdate', newComment); // Broadcast the new comment
+            res.json({ success: true, message: 'Comment posted.', comment: newComment });
+        } else {
+            return res.status(500).json({ success: false, message: 'Failed to save comment.' });
+        }
+    } catch (error) {
+        console.error('Comment posting error:', error);
+        res.status(500).json({ success: false, message: 'Database error posting comment.' });
+    }
+});
+
+// NEW: GET: Fetch comments for a post
+app.get('/api/comments/:postId', async (req, res) => {
+    const { postId } = req.params;
+
+    try {
+        const comments = await db.getCommentsByPostId(postId);
+        res.json({ success: true, comments });
+    } catch (error) {
+        console.error('Comments fetch error:', error);
+        res.status(500).json({ success: false, message: 'Database error fetching comments.' });
+    }
+});
+
+// GET: Fetch private chat history (FIXED: Route name matches client)
+// Client endpoint: /api/chathistory?user1Id=${currentUser.id}&user2Id=${recipientId}
+app.get('/api/chathistory', async (req, res) => {
+    const { user1Id, user2Id } = req.query;
+
+    if (!user1Id || !user2Id) {
+        return res.status(400).json({ success: false, message: 'User1 ID and User2 ID are required.' });
+    }
+
+    try {
+        const history = await db.getChatHistory(user1Id, user2Id);
+        res.json({ success: true, history });
+    } catch (error) {
+        console.error('Chat history fetch error:', error);
+        res.status(500).json({ success: false, message: 'Database error fetching chat history.' });
+    }
+});
+
+
+// --- Socket.IO Connection and Handlers ---
 
 io.on('connection', (socket) => {
-    const session = socket.request.session;
-    const user = session.user;
+    console.log('A user connected:', socket.id);
 
-    if (user) {
-        console.log(`User connected: ${user.username} (${user.id})`);
+    // --- 1. User Presence Tracking (NO CHANGE) ---
 
-        // Set user as online and broadcast the list
-        db.setOnlineStatus(user.id, user.username, socket.id)
-            .then(async () => {
-                const onlineUsers = await db.getOnlineUsers();
-                io.emit('onlineUsers', onlineUsers);
-            })
-            .catch(err => console.error('Error setting online status:', err));
-    } else {
-        console.log('Unauthenticated user connected.');
-    }
+    socket.on('userOnline', async ({ userId, username }) => {
+        if (!userId || !username) {
+            console.warn('userOnline event missing userId or username.');
+            return;
+        }
 
-    // LIKES
-    socket.on('likePost', async (postId) => {
-        if (!user) return;
         try {
-            const isLiked = await db.getLike(postId, user.id);
-            if (isLiked) {
-                await db.removeLike(postId, user.id);
+            await db.setOnlineStatus(userId, username, socket.id);
+            socket.userId = userId; // Store userId on the socket for easier lookup
+            console.log(`User ${username} (${userId}) is now online.`);
+            broadcastOnlineUsers();
+        } catch (err) {
+            console.error("Error setting user online status:", err);
+        }
+    });
+
+    socket.on('userOffline', async ({ userId }) => {
+        if (!userId) return;
+        try {
+            await db.removeOnlineStatusByUserId(userId);
+            console.log(`User ${userId} explicitly went offline.`);
+            delete socket.userId;
+            broadcastOnlineUsers();
+        } catch (err) {
+            console.error("Error removing user status:", err);
+        }
+    });
+
+    socket.on('disconnect', async () => {
+        if (socket.userId) {
+            try {
+                await db.removeOnlineStatusBySocketId(socket.id);
+                console.log(`User ${socket.userId} disconnected.`);
+                broadcastOnlineUsers();
+            } catch (err) {
+                console.error("Error removing user status on disconnect:", err);
+            }
+        }
+        console.log('User disconnected:', socket.id);
+    });
+
+    // --- 2. Private Messaging (NO CHANGE) ---
+
+    socket.on('privateMessage', async (msg) => {
+        const { senderId, recipientId, message } = msg;
+
+        if (!senderId || !recipientId || !message) {
+            console.warn('Invalid private message data received.');
+            return;
+        }
+
+        try {
+            await db.savePrivateMessage(senderId, recipientId, message);
+
+            const fullMsg = {
+                sender_id: senderId.toString(),
+                recipient_id: recipientId.toString(),
+                message,
+                timestamp: new Date().toISOString()
+            };
+
+            // 2. Find recipient's socket ID and send
+            const recipientSocketId = await db.getRecipientSocketId(recipientId);
+            if (recipientSocketId) {
+                io.to(recipientSocketId).emit('newPrivateMessage', fullMsg);
+                console.log(`Private message sent to ${recipientId}.`);
             } else {
-                await db.addLike(postId, user.id);
+                console.log(`Recipient ${recipientId} not found online. Message saved but not delivered in real-time.`);
             }
 
+            // 3. Echo the message back to the sender
+            socket.emit('newPrivateMessage', fullMsg);
+        } catch (err) {
+            console.error("Error handling private message:", err);
+        }
+    });
+
+    // --- 3. Feed and Likes (REMOVED redundant newPost handler) ---
+
+    // Note: newPost broadcast is now handled in the /api/post route after saving to DB.
+
+    socket.on('likePost', async (data) => {
+        const { postId, userId } = data;
+
+        try {
+            const row = await db.getLike(postId, userId);
+
+            if (row) {
+                await db.removeLike(postId, userId); // Unlike
+            } else {
+                await db.addLike(postId, userId); // Like
+            }
+
+            // Get the new count and broadcast
             const newCount = await db.getLikeCount(postId);
-            io.emit('likeCountUpdate', { postId, newCount });
+            io.emit('likeUpdate', { postId, newCount });
         } catch (err) {
-            console.error('Error handling likePost:', err);
+            console.error("Error handling likePost:", err);
         }
-    });
-
-    // --- COMMENTS (NEW) ---
-
-    // Handler to load comments when a user clicks the comment button
-    socket.on('loadComments', async (postId) => {
-        if (!user) return;
-        try {
-            const comments = await db.getCommentsByPostId(postId);
-            // Send the comments back ONLY to the requesting socket
-            socket.emit('postComments', { postId, comments });
-        } catch (err) {
-            console.error('Error handling loadComments:', err);
-        }
-    });
-
-    // Handler to submit a new comment
-    socket.on('addComment', async (data) => {
-        if (!user) return;
-        const { postId, content } = data;
-        const commentId = uuidv4();
-
-        try {
-            const success = await db.addComment(commentId, postId, user.id, user.username, content);
-
-            if (success) {
-                const profilePicUrl = user.profilePicUrl;
-
-                // Create the full comment object to broadcast
-                const newComment = {
-                    id: commentId,
-                    postId: postId,
-                    userId: user.id,
-                    username: user.username,
-                    content: content,
-                    created_at: new Date().toISOString(),
-                    profile_pic_url: profilePicUrl
-                };
-
-                io.emit('newComment', newComment);
-
-                const newCount = await db.getCommentCount(postId);
-                io.emit('commentCountUpdate', { postId, newCount });
-            }
-        } catch (err) {
-            console.error("Error handling addComment:", err);
-        }
-    });
-
-
-    // PRIVATE MESSAGES
-    socket.on('privateMessage', async ({ recipientId, message }) => {
-        if (!user || !recipientId || !message) return;
-
-        try {
-            const success = await db.savePrivateMessage(user.id, recipientId, message);
-            if (success) {
-                const recipientSocketId = await db.getRecipientSocketId(recipientId);
-
-                const messageData = {
-                    senderId: user.id,
-                    senderUsername: user.username,
-                    message: message,
-                    timestamp: new Date().toISOString()
-                };
-
-                // 1. Send to recipient (if online)
-                if (recipientSocketId) {
-                    io.to(recipientSocketId).emit('privateMessage', messageData);
-                }
-
-                // 2. Send back to sender
-                socket.emit('privateMessage', messageData);
-
-            }
-        } catch (err) {
-            console.error('Error saving or sending private message:', err);
-        }
-    });
-
-    // DISCONNECT
-    socket.on('disconnect', () => {
-        console.log(`User disconnected: ${socket.id}`);
-
-        // Remove user from online list and broadcast the update
-        db.removeOnlineStatusBySocketId(socket.id)
-            .then(async () => {
-                const onlineUsers = await db.getOnlineUsers();
-                io.emit('onlineUsers', onlineUsers);
-            })
-            .catch(err => console.error('Error removing online status:', err));
     });
 });
 
-// --- SERVER STARTUP ---
-const PORT = process.env.PORT || 3000;
+// --- Server Start ---
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
 });

@@ -1,16 +1,14 @@
 // --- ENVIRONMENT CONFIGURATION ---
-// 1. Import and run dotenv to load variables from the .env file
-
+require('dotenv').config(); // <--- NEW: Load environment variables from .env
 
 // --- Dependencies ---
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const bcrypt = require('bcrypt');
-const { v4: uuidv4 } = require('uuid'); // Production-ready UUID for IDs
-const db = require('./db'); // Import the new MySQL database module
-
-// Install this package: npm install uuid
+const { v4: uuidv4 } = require('uuid');
+const db = require('./db');
+const nodemailer = require('nodemailer'); // <--- NEW: Import Nodemailer
 
 const app = express();
 const server = http.createServer(app);
@@ -25,9 +23,19 @@ const io = socketIo(server, {
 const PORT = process.env.PORT || 3000;
 const saltRounds = 10;
 
+// --- Nodemailer Setup (NEW) ---
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for 587/2525
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+    },
+});
+
 // --- Middleware ---
 app.use(express.json());
-// Assuming 'public' contains index.html, otherwise remove the 'public' if index.html is in the root
 app.use(express.static('public'));
 
 // --- Helper Functions ---
@@ -36,14 +44,9 @@ app.use(express.static('public'));
  * Broadcasts the current list of online users to all connected clients.
  */
 const broadcastOnlineUsers = async () => {
-    // FIX: Using db.getOnlineUsers which now selects all necessary fields (userId, username, profilePicUrl)
     const users = await db.getOnlineUsers();
     // Exclude the socketId from the broadcast payload for security/cleanliness
-    const userPayload = users.map(u => ({
-        userId: u.userId,
-        username: u.username,
-        profilePicUrl: u.profilePicUrl
-    }));
+    const userPayload = users.map(u => ({ userId: u.userId, username: u.username }));
     io.emit('onlineUsers', userPayload);
     console.log(`Broadcasting ${userPayload.length} online users.`);
 };
@@ -51,9 +54,9 @@ const broadcastOnlineUsers = async () => {
 
 // --- API Routes ---
 
-// AUTH: Signup endpoint (UPDATED: Handle profilePicUrl)
+// AUTH: Signup endpoint
 app.post('/api/signup', async (req, res) => {
-    const { email, password, username, profilePicUrl } = req.body;
+    const { email, password, username } = req.body;
     if (!email || !password || !username) {
         return res.status(400).json({ success: false, message: 'All fields are required.' });
     }
@@ -62,12 +65,12 @@ app.post('/api/signup', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, saltRounds);
         const userId = uuidv4(); // Use production-ready UUID
 
-        const success = await db.createUser(userId, email, hashedPassword, username, profilePicUrl);
+        const success = await db.createUser(userId, email, hashedPassword, username);
 
         if (success) {
-            // UPDATED: Return profilePicUrl
-            res.json({ success: true, message: 'User created successfully.', token: 'fake-jwt-token', userId, username, profilePicUrl });
+            res.json({ success: true, message: 'User created successfully.', token: 'fake-jwt-token', userId, username });
         } else {
+             // If success is false, there was likely a database issue (though not necessarily a duplicate entry)
              return res.status(500).json({ success: false, message: 'Failed to create user due to database issue.' });
         }
     } catch (error) {
@@ -79,7 +82,7 @@ app.post('/api/signup', async (req, res) => {
     }
 });
 
-// AUTH: Login endpoint (UPDATED: Return profilePicUrl)
+// AUTH: Login endpoint
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -94,197 +97,267 @@ app.post('/api/login', async (req, res) => {
         }
 
         const match = await bcrypt.compare(password, user.password_hash);
+
         if (match) {
-            // UPDATED: Return profilePicUrl
-            res.json({ success: true, message: 'Login successful.', token: 'fake-jwt-token', userId: user.user_id, username: user.username, profilePicUrl: user.profilePicUrl });
+            res.json({ success: true, message: 'Login successful.', token: 'fake-jwt-token', userId: user.user_id, username: user.username });
         } else {
             res.status(401).json({ success: false, message: 'Invalid credentials.' });
         }
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({ success: false, message: 'Server error during login.' });
+        res.status(500).json({ success: false, message: 'Server error.' });
     }
 });
 
-// POST: Upload a new post (UPDATED: Using cleaner data model)
-app.post('/api/post', async (req, res) => {
-    const { user_id, content, media_url } = req.body;
-    if (!user_id || (!content && !media_url)) {
-        return res.status(400).json({ success: false, message: 'Content or media is required.' });
+
+// AUTH: Forgot Password endpoint (NEW)
+app.post('/api/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ success: false, message: 'Email is required.' });
     }
 
     try {
+        const user = await db.findUserByEmail(email);
+
+        // SECURITY NOTE: Respond with a generic success message even if the user isn't found
+        // to prevent potential attackers from enumerating valid email addresses.
+        if (!user) {
+            // Log a warning, but return success to the user
+            console.log(`Password reset requested for unknown email: ${email}`);
+            return res.json({ success: true, message: 'A password reset link has been sent to your email address.' });
+        }
+
+        const resetToken = uuidv4();
+        const userId = user.user_id;
+
+        // 1. Save token and expiry (1 hour expiry is set in db.js function)
+        await db.savePasswordResetToken(userId, resetToken);
+
+        // 2. SEND ACTUAL EMAIL HERE
+        const resetLink = `http://localhost:${PORT}/?view=reset&token=${resetToken}`;
+
+        const mailOptions = {
+            from: `"${process.env.EMAIL_FROM_NAME || 'SupaGram Support'}" <${process.env.SMTP_USER}>`,
+            to: user.email,
+            subject: 'SupaGram Password Reset Request',
+            html: `
+                <p>You requested a password reset for your SupaGram account.</p>
+                <p>Click the link below to reset your password:</p>
+                <p><a href="${resetLink}">Reset Password Link</a></p>
+                <p>This link will expire in 1 hour.</p>
+                <p>If you did not request this, please ignore this email.</p>
+            `,
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log(`Password reset link sent to: ${user.email}`);
+            // Log the URL to the console in development for easy testing
+            console.log(`[DEV TEST LINK]: ${resetLink}`);
+        } catch (emailError) {
+            console.error('Error sending password reset email:', emailError.message);
+            // If the email fails, we still return success to the user (security)
+        }
+
+        res.json({ success: true, message: 'A password reset link has been sent to your email address.' });
+
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ success: false, message: 'Server error during password reset request.' });
+    }
+});
+
+// AUTH: Reset Password endpoint (NEW)
+app.post('/api/reset-password', async (req, res) => {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+        return res.status(400).json({ success: false, message: 'Token and new password are required.' });
+    }
+
+    // Basic password strength check
+    if (newPassword.length < 8) {
+         return res.status(400).json({ success: false, message: 'New password must be at least 8 characters long.' });
+    }
+
+    try {
+        // 1. Find user by token and check expiry
+        const user = await db.findUserByToken(token);
+
+        if (!user) {
+            // Return generic error for security
+            return res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
+        }
+
+        // 2. Hash new password
+        const newHashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+        // 3. Update password and delete the token (invalide it)
+        await db.updateUserPassword(user.user_id, newHashedPassword);
+        await db.deletePasswordResetToken(token);
+
+        res.json({ success: true, message: 'Password has been successfully reset. Please log in.' });
+
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ success: false, message: 'Server error during password reset.' });
+    }
+});
+
+
+// POSTS: Get all posts
+app.get('/api/posts', async (req, res) => {
+    try {
+        const posts = await db.getAllPosts();
+        res.json(posts);
+    } catch (error) {
+        console.error('Error fetching posts:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch posts.' });
+    }
+});
+
+// POSTS: Create new post
+app.post('/api/posts', async (req, res) => {
+    const { userId, username, content, mediaUrl } = req.body;
+    if (!userId || !username || (!content && !mediaUrl)) {
+        return res.status(400).json({ success: false, message: 'Content or media URL is required.' });
+    }
+    try {
         const postId = uuidv4();
-        const success = await db.createPost(postId, user_id, content, media_url);
+        const success = await db.createPost(postId, userId, username, content, mediaUrl);
 
         if (success) {
-            // Re-destructure from req.body for *immediate* socket broadcast
-            const { username, profilePicUrl } = req.body;
-            const newPost = { id: postId, user_id, username, content, media_path: media_url, likesCount: 0, profilePicUrl };
-            io.emit('updateFeed', newPost); // Broadcast the new post to all connected clients
-            res.json({ success: true, message: 'Post created.', post: newPost });
+            // Fetch the newly created post (or construct it) for the broadcast
+            const newPost = { postId, userId, username, content, mediaUrl, timestamp: new Date().toISOString(), likeCount: 0 };
+            io.emit('updateFeed', newPost); // Broadcast the new post to all clients
+            res.json({ success: true, message: 'Post created successfully.', postId });
         } else {
-            return res.status(500).json({ success: false, message: 'Failed to create post.' });
+            res.status(500).json({ success: false, message: 'Failed to create post.' });
         }
     } catch (error) {
         console.error('Post creation error:', error);
-        res.status(500).json({ success: false, message: 'Database error creating post.' });
+        res.status(500).json({ success: false, message: 'Server error.' });
     }
 });
 
-// GET: Fetch all posts for the feed (UPDATED: Check for user's like status)
-app.get('/api/posts', async (req, res) => {
-    const { userId } = req.query;
-    if (!userId) {
-        return res.status(400).json({ success: false, message: 'User ID is required.' });
-    }
+// COMMENTS: Get comments for a post
+app.get('/api/posts/:postId/comments', async (req, res) => {
     try {
-        const rawPosts = await db.getAllPosts();
-        // Map posts to determine if the current user has liked it
-        const posts = await Promise.all(rawPosts.map(async post => {
-            const hasLiked = await db.getLike(post.id, userId);
-            return {
-                ...post,
-                id: post.id,
-                isLiked: !!hasLiked,
-                like_count: parseInt(post.likesCount)
-            };
-        }));
-        res.json({ success: true, posts });
+        const postId = req.params.postId;
+        const comments = await db.getCommentsForPost(postId);
+        res.json(comments);
     } catch (error) {
-        console.error('Feed fetch error:', error);
-        res.status(500).json({ success: false, message: 'Database error fetching posts.' });
+        console.error('Error fetching comments:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch comments.' });
     }
 });
 
-// NEW: POST: Save a comment
-app.post('/api/comment', async (req, res) => {
-    // Keeping username/profilePicUrl in req.body for socket broadcast, but not saving to comment table
-    const { post_id, user_id, content } = req.body;
-    if (!post_id || !user_id || !content) {
-        return res.status(400).json({ success: false, message: 'Post ID, User ID, and Content are required.' });
+// COMMENTS: Add a comment
+app.post('/api/posts/:postId/comments', async (req, res) => {
+    const { userId, username, text } = req.body;
+    const postId = req.params.postId;
+
+    if (!userId || !username || !text) {
+        return res.status(400).json({ success: false, message: 'User ID, username, and text are required.' });
     }
 
     try {
-        const commentId = uuidv4();
-        // FIX: The db.createComment function is called with only the four required parameters (id, post_id, user_id, content)
-        const success = await db.createComment(commentId, post_id, user_id, content);
-
+        const success = await db.addComment(postId, userId, username, text);
         if (success) {
-            // Re-destructure from req.body for socket broadcast
-            const { username, profilePicUrl } = req.body;
-            const newComment = { id: commentId, post_id, user_id, username, content, profilePicUrl, created_at: new Date().toISOString() };
-            io.emit('commentUpdate', newComment); // Broadcast the new comment
-            res.json({ success: true, message: 'Comment posted.', comment: newComment });
+            // Get the user's current profile pic to send back with the comment
+            const profilePicUrl = await db.getUserProfilePic(userId);
+            const newComment = { postId, userId, username, text, profilePicUrl, timestamp: new Date().toISOString() };
+            // Broadcast the new comment to all connected clients
+            io.emit('newComment', newComment);
+            res.json({ success: true, message: 'Comment added successfully.', comment: newComment });
         } else {
-            return res.status(500).json({ success: false, message: 'Failed to save comment.' });
+            res.status(500).json({ success: false, message: 'Failed to add comment.' });
         }
     } catch (error) {
-        console.error('Comment posting error:', error);
-        res.status(500).json({ success: false, message: 'Database error posting comment.' });
+        console.error('Add comment error:', error);
+        res.status(500).json({ success: false, message: 'Server error.' });
     }
 });
 
-// NEW: GET: Fetch comments for a post
-app.get('/api/comments/:postId', async (req, res) => {
-    const { postId } = req.params;
-
-    try {
-        const comments = await db.getCommentsByPostId(postId);
-        res.json({ success: true, comments });
-    } catch (error) {
-        console.error('Comments fetch error:', error);
-        res.status(500).json({ success: false, message: 'Database error fetching comments.' });
-    }
-});
-
-// GET: Fetch private chat history (FIXED: Route name matches client)
-app.get('/api/chathistory', async (req, res) => {
-    const { user1Id, user2Id } = req.query;
-
-    if (!user1Id || !user2Id) {
-        return res.status(400).json({ success: false, message: 'User1 ID and User2 ID are required.' });
+// PROFILE: Update profile picture URL
+app.post('/api/profile/picture', async (req, res) => {
+    const { userId, url } = req.body;
+    if (!userId || !url) {
+        return res.status(400).json({ success: false, message: 'User ID and URL are required.' });
     }
 
     try {
-        const history = await db.getChatHistory(user1Id, user2Id);
-        res.json({ success: true, history });
+        const success = await db.updateUserProfilePic(userId, url);
+        if (success) {
+            res.json({ success: true, message: 'Profile picture updated successfully.' });
+        } else {
+            res.status(500).json({ success: false, message: 'Failed to update profile picture.' });
+        }
     } catch (error) {
-        console.error('Chat history fetch error:', error);
-        res.status(500).json({ success: false, message: 'Database error fetching chat history.' });
+        console.error('Update profile picture error:', error);
+        res.status(500).json({ success: false, message: 'Server error.' });
     }
 });
 
 
-// --- Socket.IO Connection and Handlers ---
-
+// --- WebSocket (Socket.IO) Logic ---
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
-    // --- 1. User Presence Tracking ---
+    // --- 1. User Status ---
 
-    socket.on('userOnline', async ({ userId, username }) => {
-        if (!userId || !username) {
-            console.warn('userOnline event missing userId or username.');
-            return;
-        }
+    socket.on('userOnline', async (data) => {
+        const { userId, username } = data;
+        if (!userId || !username) return;
 
         try {
-            await db.setOnlineStatus(userId, username, socket.id);
-            socket.userId = userId; // Store userId on the socket for easier lookup
-            console.log(`User ${username} (${userId}) is now online.`);
+            await db.registerOnlineUser(userId, username, socket.id);
             broadcastOnlineUsers();
+            console.log(`${username} (${userId}) is online.`);
         } catch (err) {
-            console.error("Error setting user online status:", err);
-        }
-    });
-
-    socket.on('userOffline', async ({ userId }) => {
-        if (!userId) return;
-        try {
-            await db.removeOnlineStatusByUserId(userId);
-            console.log(`User ${userId} explicitly went offline.`);
-            delete socket.userId;
-            broadcastOnlineUsers();
-        } catch (err) {
-            console.error("Error removing user status:", err);
+            console.error("Error registering user online:", err);
         }
     });
 
     socket.on('disconnect', async () => {
-        if (socket.userId) {
-            try {
-                await db.removeOnlineStatusBySocketId(socket.id);
-                console.log(`User ${socket.userId} disconnected.`);
+        try {
+            const success = await db.unregisterOnlineUser(socket.id);
+            if (success) {
                 broadcastOnlineUsers();
-            } catch (err) {
-                console.error("Error removing user status on disconnect:", err);
+                console.log('User disconnected:', socket.id);
             }
+        } catch (err) {
+            console.error("Error unregistering user:", err);
         }
-        console.log('User disconnected:', socket.id);
     });
 
-    // --- 2. Private Messaging ---
+    // --- 2. Private Chat ---
 
-    socket.on('privateMessage', async (msg) => {
-        const { senderId, recipientId, message } = msg;
+    socket.on('requestChatHistory', async (data) => {
+        const { senderId, recipientId } = data;
+        try {
+            const history = await db.getChatHistory(senderId, recipientId);
+            socket.emit('chatHistory', { recipientId, history });
+        } catch (err) {
+            console.error("Error fetching chat history:", err);
+        }
+    });
+
+    socket.on('privateMessage', async (data) => {
+        const { senderId, recipientId, message } = data;
+        const timestamp = new Date().toISOString();
 
         if (!senderId || !recipientId || !message) {
-            console.warn('Invalid private message data received.');
             return;
         }
 
         try {
+            // 1. Save the message to the database
             await db.savePrivateMessage(senderId, recipientId, message);
 
-            const fullMsg = {
-                sender_id: senderId.toString(),
-                recipient_id: recipientId.toString(),
-                message,
-                timestamp: new Date().toISOString()
-            };
+            const fullMsg = { senderId, recipientId, message, timestamp };
 
-            // 2. Find recipient's socket ID and send
+            // 2. Try to send the message to the recipient if they are online
             const recipientSocketId = await db.getRecipientSocketId(recipientId);
             if (recipientSocketId) {
                 io.to(recipientSocketId).emit('newPrivateMessage', fullMsg);
@@ -301,6 +374,10 @@ io.on('connection', (socket) => {
     });
 
     // --- 3. Feed and Likes ---
+
+    socket.on('newPost', (post) => {
+        socket.broadcast.emit('updateFeed', post);
+    });
 
     socket.on('likePost', async (data) => {
         const { postId, userId } = data;
@@ -323,7 +400,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// --- Server Start ---
+// --- Server Startup ---
 server.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });

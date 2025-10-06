@@ -2,12 +2,16 @@
 const mysql = require('mysql2/promise'); // Using mysql2/promise for better async support
 
 // --- DATABASE CONFIGURATION ---
-// Configuration for XAMPP's default MySQL server
+// Configuration is set to RELY ENTIRELY on Environment Variables (process.env).
+// The application will crash if the necessary variables are not set at runtime.
 const pool = mysql.createPool({
-    host: 'localhost',
-    user: 'root',      // XAMPP default user
-    password: '',      // XAMPP default password
-    database: 'your_realtime_app_db', // Ensure this matches the DB name in the SQL script
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    // Ensure the port is parsed as an integer
+    port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : undefined,
+
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0

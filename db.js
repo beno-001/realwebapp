@@ -69,15 +69,17 @@ const createPost = async (postId, userId, username, content, mediaUrl) => {
 };
 
 const getAllPosts = async () => {
-    // FIX: Joining on u.user_id and calculating likesCount via LEFT JOIN on 'likes' table
+    // FIX: Joining on u.user_id and calculating likesCount and commentsCount
     const querySQL = `
         SELECT
             p.*,
             u.username,
-            COUNT(l.user_id) AS likesCount
+            COUNT(DISTINCT l.user_id) AS likesCount,
+            COUNT(DISTINCT c.id) AS commentsCount -- NEW: Count comments
         FROM posts p
         JOIN users u ON p.user_id = u.user_id
         LEFT JOIN likes l ON p.id = l.post_id
+        LEFT JOIN comments c ON p.id = c.post_id -- NEW: Join comments table
         GROUP BY p.id, p.user_id, p.created_at, p.content, p.media_url, u.username
         ORDER BY p.created_at DESC
         LIMIT 20
@@ -92,35 +94,67 @@ const getLike = async (postId, userId) => {
 };
 
 const addLike = async (postId, userId) => {
-    await query('INSERT INTO likes (post_id, user_id) VALUES (?, ?)', [postId, userId]);
+    const result = await query('INSERT INTO likes (post_id, user_id) VALUES (?, ?)', [postId, userId]);
+    return result.affectedRows > 0;
 };
 
 const removeLike = async (postId, userId) => {
-    await query('DELETE FROM likes WHERE post_id = ? AND user_id = ?', [postId, userId]);
+    const result = await query('DELETE FROM likes WHERE post_id = ? AND user_id = ?', [postId, userId]);
+    return result.affectedRows > 0;
 };
 
 const getLikeCount = async (postId) => {
-    const rows = await query('SELECT COUNT(*) as newCount FROM likes WHERE post_id = ?', [postId]);
-    return rows[0].newCount;
+    const rows = await query('SELECT COUNT(*) AS count FROM likes WHERE post_id = ?', [postId]);
+    return rows[0] ? rows[0].count : 0;
 };
 
+// COMMENTS (NEW FUNCTIONS)
+const createComment = async (commentId, postId, userId, username, content) => {
+    const result = await query(
+        'INSERT INTO comments (id, post_id, user_id, username, content) VALUES (?, ?, ?, ?, ?)',
+        [commentId, postId, userId, username, content]
+    );
+    return result.affectedRows > 0;
+};
 
-// ONLINE USERS
-const setOnlineStatus = async (userId, username, socketId) => {
+const getCommentsForPost = async (postId) => {
     const sql = `
-        INSERT INTO online_users (userId, username, socketId)
-        VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE socketId = ?
+        SELECT
+            c.id,
+            c.post_id,
+            c.user_id,
+            c.username,
+            c.content,
+            c.created_at AS timestamp
+        FROM comments c
+        WHERE c.post_id = ?
+        ORDER BY c.created_at ASC
     `;
-    await query(sql, [userId, username, socketId, socketId]);
+    return await query(sql, [postId]);
 };
 
-const removeOnlineStatusBySocketId = async (socketId) => {
+const getCommentCount = async (postId) => {
+    const rows = await query('SELECT COUNT(*) AS count FROM comments WHERE post_id = ?', [postId]);
+    return rows[0] ? rows[0].count : 0;
+};
+
+// --- REAL-TIME USER STATUS MANAGEMENT ---
+
+const userIsOnline = async (userId, socketId, username) => {
+    // Check if user is already in online_users to prevent duplicate entries on reconnect
+    const exists = await query('SELECT 1 FROM online_users WHERE userId = ?', [userId]);
+
+    if (exists.length > 0) {
+        // Update socketId if user already exists (handles reconnects)
+        await query('UPDATE online_users SET socketId = ? WHERE userId = ?', [socketId, userId]);
+    } else {
+        // Insert new user
+        await query('INSERT INTO online_users (userId, socketId, username) VALUES (?, ?, ?)', [userId, socketId, username]);
+    }
+};
+
+const userIsOffline = async (socketId) => {
     await query('DELETE FROM online_users WHERE socketId = ?', [socketId]);
-};
-
-const removeOnlineStatusByUserId = async (userId) => {
-    await query('DELETE FROM online_users WHERE userId = ?', [userId]);
 };
 
 const getOnlineUsers = async () => {
@@ -167,12 +201,15 @@ module.exports = {
     addLike,
     removeLike,
     getLikeCount,
-    setOnlineStatus,
-    removeOnlineStatusBySocketId,
-    removeOnlineStatusByUserId,
+    // NEW EXPORTS
+    createComment,
+    getCommentsForPost,
+    getCommentCount,
+    // REAL-TIME & CHAT
+    userIsOnline,
+    userIsOffline,
     getOnlineUsers,
     savePrivateMessage,
     getChatHistory,
-    getRecipientSocketId,
-    query
+    getRecipientSocketId
 };

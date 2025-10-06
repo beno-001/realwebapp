@@ -229,40 +229,18 @@
             gap: 15px;
             font-size: 1.1em;
         }
-        .post .like-btn, .post .comment-action-btn {
+        .post .like-btn {
             background: none;
             color: var(--primary-color);
             padding: 5px 10px;
             border: 1px solid var(--primary-color);
             font-weight: 400;
             transition: all 0.2s;
-            /* New: Small icon button style for reply */
-            width: 38px;
-            height: 38px;
-            padding: 0;
-            border-radius: 50%;
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
         }
-        /* New: Separate style for the full comment button */
-        .post .view-comments-btn {
-            background: none;
-            color: var(--secondary-color);
-            border: 1px solid #ccc;
-            padding: 5px 10px;
-            font-weight: 400;
-            font-size: 0.9em;
-        }
-        .post .like-btn:hover, .post .comment-action-btn:hover {
+        .post .like-btn:hover {
             background-color: var(--primary-color);
             color: white;
         }
-        .dark-mode .post .view-comments-btn {
-            color: var(--text-color);
-            border-color: #4a637a;
-        }
-
 
         /* New: Comments Section Styles */
         .post .comments-section {
@@ -283,13 +261,23 @@
             background: var(--chat-bubble-received);
             padding: 6px 10px;
             border-radius: 12px;
-            max-width: 85%;
         }
         .dark-mode .comment-text {
             background: #34495e;
         }
-        /* Removed comment-input-row styles as it's moved to a modal */
-
+        .comment-input-row {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .comment-input-row input {
+            flex-grow: 1;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background-color: var(--input-background);
+            color: var(--text-color);
+        }
 
         /* --- Modal/Auth/Settings Styles --- */
         .modal {
@@ -313,15 +301,12 @@
             max-width: 400px;
             text-align: center;
         }
-        .modal-content input, .modal-content textarea {
+        .modal-content input {
             width: calc(100% - 20px);
             padding: 10px;
             margin: 10px 0;
             border: 1px solid #ddd;
             border-radius: 6px;
-            resize: none;
-            background-color: var(--input-background);
-            color: var(--text-color);
         }
         .modal-content button {
             margin-top: 15px;
@@ -636,18 +621,6 @@
             </div>
         </div>
 
-        <div id="reply-modal" class="modal" style="display: none;">
-            <div class="modal-content">
-                <h2 id="reply-modal-title">Reply to Post</h2>
-                <div id="reply-post-content" style="text-align: left; margin-bottom: 15px; max-height: 100px; overflow-y: auto; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
-                    </div>
-                <textarea id="reply-input" placeholder="Write your reply (max 100 chars)..." maxlength="100" rows="3"></textarea>
-                <button id="post-reply-btn" data-post-id="">Post Reply</button>
-                <button id="close-reply-modal-btn" style="background: #ccc; color: var(--secondary-color); margin-top: 10px;">Cancel</button>
-                <p id="reply-message" style="color: var(--primary-color); margin-top: 15px;"></p>
-            </div>
-        </div>
-
         <header>
             <h1 class="logo">SupaGram</h1>
             <nav>
@@ -677,7 +650,7 @@
                 <div id="online-users-sidebar">
                     <h3>Users</h3>
                     <div id="online-users-list">
-                        <p style="font-size: 0.9em; color: blue;" >Waiting for users...</p>
+                        <p style="font-size: 0.9em; color: #999;">Waiting for users...</p>
                     </div>
                 </div>
                 <div id="chat-main">
@@ -685,10 +658,8 @@
                         <button id="menu-toggle-btn" class="hamburger-btn">☰</button>
                         <h3 id="chat-recipient-name" style="color:blue">Select a user to chat...</h3>
                     </div>
-
                     <div id="chat-window">
                         </div>
-
                     <div class="chat-input-wrapper">
                         <div id="emoji-picker-popover">
                             <div class="emoji-grid">
@@ -712,7 +683,6 @@
                                 <span class="emoji-item" data-emoji="✅">✅</span>
                             </div>
                         </div>
-
                         <div class="chat-input-row">
                             <button id="emoji-btn" class="chat-icon-btn" title="Emojis">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto">
@@ -729,7 +699,6 @@
                                 </svg>
                             </button>
                             <input type="file" id="chat-file-upload" style="display: none;" accept="image/*, .pdf, .txt, .zip">
-
                             <input type="text" id="chat-input" placeholder="Type a message..." disabled>
                             <button id="send-btn" disabled class="send-icon-btn" title="Send">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto transform rotate-45 -mt-1 -mr-0.5">
@@ -753,13 +722,15 @@
             username: null,
             token: null,
             // NEW: Default profile picture placeholder
-            profilePicUrl: 'https://placehold.co/40x40/FF385C/FFFFFF?text=P' // Default placeholder
+            profilePicUrl: 'https://placehold.co/40x40/ccc/333?text='
         };
         let onlineUsers = []; // Stores only currently online users (from socket broadcasts)
         let currentRecipient = null; // Stores { userId, username } of the currently selected chat partner
         let unreadCounts = {}; // { userId: count, ... } for notification badges
 
+
         // --- NEW: THEME AND SETTINGS LOGIC ---
+
         function setTheme(themeName) {
             const body = document.body;
             const themeSelectors = document.querySelectorAll('.theme-option');
@@ -807,15 +778,16 @@
             // New: Handle profile picture upload placeholder logic
             document.getElementById('profile-picture-upload').addEventListener('change', function() {
                 if (this.files.length > 0) {
-                     document.getElementById('auth-message').textContent = 'Profile picture selected. This URL would be saved to the database on a real server.';
-                     setTimeout(() => document.getElementById('auth-message').textContent = '', 5000);
-                     // Simulate updating the profile picture URL
-                     currentUser.profilePicUrl = 'https://placehold.co/40x40/007bff/FFFFFF?text=✔️';
+                    document.getElementById('auth-message').textContent = 'Profile picture selected. This URL would be saved to the database on a real server.';
+                    setTimeout(() => document.getElementById('auth-message').textContent = '', 5000);
+                    // Simulate updating the profile picture URL
+                    currentUser.profilePicUrl = 'https://placehold.co/40x40/007bff/FFFFFF?text=✔️';
                 }
             });
         }
 
         // --- 1. AUTHENTICATION LOGIC (unchanged) ---
+
         function toggleAuthMode() {
             const isLogin = currentAuthMode === 'login';
             currentAuthMode = isLogin ? 'signup' : 'login';
@@ -825,158 +797,269 @@
             document.getElementById('auth-toggle-btn').textContent = isLogin ? 'Already have an account? Login' : 'Need an account? Sign Up';
             document.getElementById('auth-message').textContent = '';
         }
-        async function authenticate(endpoint) {
+
+        async function handleAuth() {
+            const username = document.getElementById('username').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const username = document.getElementById('username').value;
-            const authMessage = document.getElementById('auth-message');
-            authMessage.textContent = 'Processing...';
-            const payload = { email, password };
-            if (endpoint === 'signup') {
-                payload.username = username;
+            const messageEl = document.getElementById('auth-message');
+            messageEl.textContent = 'Processing...';
+
+            const endpoint = currentAuthMode === 'login' ? '/api/login' : '/api/signup';
+            const body = { email, password };
+            if (currentAuthMode === 'signup') {
+                body.username = username;
             }
+
             try {
-                const response = await fetch(`/api/${endpoint}`, {
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(body)
                 });
                 const data = await response.json();
-                if (response.ok) {
-                    currentUser.token = data.token;
+
+                if (data.success) {
+                    messageEl.textContent = data.message;
+                    localStorage.setItem('userToken', data.token);
                     currentUser.id = data.userId;
                     currentUser.username = data.username;
-                    // NEW: Set profile picture URL from data or default
-                    currentUser.profilePicUrl = data.profilePicUrl || currentUser.profilePicUrl;
+                    currentUser.token = data.token;
+                    // Save user data (including the default/placeholder profile pic)
+                    localStorage.setItem('currentUserData', JSON.stringify({
+                        id: data.userId,
+                        username: data.username,
+                        profilePicUrl: currentUser.profilePicUrl
+                    }));
 
-                    localStorage.setItem('userToken', data.token);
-                    localStorage.setItem('currentUserData', JSON.stringify({ id: data.userId, username: data.username, profilePicUrl: currentUser.profilePicUrl }));
-                    authMessage.textContent = `Success! Welcome, ${currentUser.username}.`;
-                    // --- ACCESS GATE CONTROL ---
                     document.getElementById('auth-modal').style.display = 'none';
                     document.getElementById('for-you-feed').style.display = 'block';
                     document.getElementById('chat-btn').style.display = 'inline-flex';
-                    // 1. Tell the server this user is online
+
+                    // 1. Notify server user is online
                     socket.emit('userOnline', { userId: currentUser.id, username: currentUser.username });
-                    // 2. Load initial feed data
+                    // 2. Load the feed
                     loadFeed();
                 } else {
-                    authMessage.textContent = data.message || `Authentication failed: ${response.status}`;
+                    messageEl.textContent = data.message;
                 }
             } catch (error) {
-                console.error('API Error:', error);
-                authMessage.textContent = 'Network or server error. Try again.';
+                messageEl.textContent = 'Connection error.';
+                console.error('Auth fetch error:', error);
             }
         }
-        function loginUser() {
-            authenticate('login');
-        }
-        function signupUser() {
-            authenticate('signup');
-        }
-        function logoutUser() {
 
-            if (currentUser.id) {
-                 socket.emit('userOffline', { userId: currentUser.id });
-            }
-            currentUser = { id: null, username: null, token: null, profilePicUrl: 'https://placehold.co/40x40/FF385C/FFFFFF?text=P' }; // Reset profile pic too
+        function handleLogout() {
             localStorage.removeItem('userToken');
             localStorage.removeItem('currentUserData');
-            unreadCounts = {}; // Clear unread counts on logout
-
-            // Re-show the login modal and hide main content
+            currentUser.id = null;
+            currentUser.username = null;
+            currentUser.token = null;
             document.getElementById('auth-modal').style.display = 'flex';
             document.getElementById('for-you-feed').style.display = 'none';
-            document.getElementById('private-chat').style.display = 'none';
             document.getElementById('chat-btn').style.display = 'none';
-            document.getElementById('auth-message').textContent = 'Logged out successfully.';
-            // Disconnect and reconnect the socket to get a fresh connection state
+            // Also notify the server that the user is offline
             socket.disconnect();
+            // Re-establish a connection so the user can log back in
             socket.connect();
         }
-        // --- 2. FEED AND POSTING LOGIC (UPDATED) ---
-        async function loadFeed() {
-            try {
-                const response = await fetch('/api/posts');
-                if (response.ok) {
-                    const data = await response.json();
-                    const posts = data.posts;
 
-                    const container = document.getElementById('posts-container');
-                    container.innerHTML = ''; // Clear existing posts
-                    posts.forEach(renderPost);
-                } else {
-                    console.error('Failed to load feed.');
-                }
-            } catch (error) {
-                console.error('Error fetching feed:', error);
-            }
-        }
 
-        // UPDATED: Include profile pic and comment section UI
-        function renderPost(post) {
-            const postsContainer = document.getElementById('posts-container');
-            const newPostElement = document.createElement('div');
-            newPostElement.className = 'post';
-            newPostElement.setAttribute('data-post-id', post.id);
+        // --- 2. FEED AND POST LOGIC (UPDATED for Comments) ---
 
-            // Use the profilePicUrl from the post data, or the current user's default if not available
-            const avatarUrl = post.profilePicUrl || currentUser.profilePicUrl;
-
-            const mediaHtml = post.media_url ?
-                `<img src="${post.media_url}" alt="Post Media" style="max-width:100%; border-radius: 8px; margin-top: 10px;">` : '';
-
-            newPostElement.innerHTML = `
-                <div class="post-header">
-                    <img class="user-avatar" src="${avatarUrl}" alt="${post.username}'s profile picture" onerror="this.src='${currentUser.profilePicUrl}'">
-                    <span class="username">${post.username || 'A User'}</span>
-                </div>
-                <p class="story-text">${post.content || post.text}</p>
-                ${mediaHtml}
-                <div class="actions">
-                    <span class="likes-count" id="likes-${post.id}">${post.likesCount || 0}</span> Likes
-                    <button class="like-btn" onclick="sendLike('${post.id}')">❤️</button>
-                    <span class="comments-count" id="comments-count-${post.id}">${post.commentsCount || 0}</span> Replies
-                    <button class="comment-action-btn" title="Reply" onclick="openReplyModal('${post.id}', '${post.username}', '${post.content}', '${post.media_url}')">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                        </svg>
-                    </button>
-                    <button class="view-comments-btn" id="view-comments-btn-${post.id}" onclick="toggleCommentsSection('${post.id}')" style="display:none;">View Replies</button>
-                </div>
-                <div class="comments-section" id="comments-section-${post.id}" style="display:none;">
-                    <h4>Replies</h4>
-                    <div id="comments-container-${post.id}">
-                        <p style="font-size: 0.8em; color: #888;">Loading replies...</p>
+        /**
+         * Renders a single comment element.
+         * @param {Object} comment - The comment object from the API.
+         * @returns {string} The HTML string for the comment.
+         */
+        function renderComment(comment) {
+            return `
+                <div class="comment-item">
+                    <img class="user-avatar" src="${currentUser.profilePicUrl}" alt="Profile" style="width: 25px; height: 25px; margin-right: 5px; border-width: 1px;">
+                    <div class="comment-text">
+                        <strong style="margin-right: 5px;">${comment.username}:</strong>
+                        <span>${comment.content}</span>
                     </div>
                 </div>
             `;
-            // Prepend to show newest first
-            postsContainer.prepend(newPostElement);
-
-            // Load existing comments after rendering the post
-            loadComments(post.id);
         }
 
-        async function uploadPost() {
-            if (!currentUser.id) {
-                document.getElementById('auth-message').textContent = 'Please log in to post.';
-                document.getElementById('auth-modal').style.display = 'flex';
+        /**
+         * Fetches and renders comments for a given post.
+         * @param {string} postId - The ID of the post.
+         */
+        async function fetchComments(postId) {
+            const commentsContainer = document.querySelector(`.comments-list[data-post-id="${postId}"]`);
+            if (!commentsContainer) return;
+
+            commentsContainer.innerHTML = ''; // Clear previous comments
+
+            try {
+                const response = await fetch(`/api/comments/${postId}`);
+                const data = await response.json();
+
+                if (data.success && data.comments.length > 0) {
+                    data.comments.forEach(comment => {
+                        commentsContainer.innerHTML += renderComment(comment);
+                    });
+                } else {
+                     commentsContainer.innerHTML = '<p style="font-size: 0.9em; color: #999; margin-left: 30px;">Be the first to comment!</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching comments:', error);
+            }
+        }
+
+        /**
+         * Sends a comment to the server.
+         * @param {string} postId - The ID of the post to comment on.
+         * @param {string} content - The comment text.
+         */
+        async function postComment(postId, content) {
+            if (!content.trim()) return;
+
+            try {
+                const response = await fetch('/api/comment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        post_id: postId,
+                        user_id: currentUser.id,
+                        username: currentUser.username,
+                        content: content.trim()
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    // Success is handled by the socket broadcast ('commentUpdate') for real-time update
+                    document.querySelector(`.comment-input-row input[data-post-id="${postId}"]`).value = ''; // Clear input
+                } else {
+                    console.error('Failed to post comment:', data.message);
+                }
+            } catch (error) {
+                console.error('Error posting comment:', error);
+            }
+        }
+
+        /**
+         * Creates the HTML structure for a post.
+         * @param {Object} post - The post object from the API.
+         * @returns {string} The HTML string for the post card.
+         */
+        function renderPost(post) {
+            const mediaHtml = post.media_url ? `<img src="${post.media_url}" alt="Post Media" style="width: 100%; height: auto; border-radius: 8px; margin-top: 10px;">` : '';
+            const isLiked = post.isLiked ? 'background-color: var(--primary-color); color: white;' : '';
+
+            return `
+                <div class="post" data-post-id="${post.id}">
+                    <div class="post-header">
+                        <img class="user-avatar" src="${currentUser.profilePicUrl}" alt="Profile">
+                        <span>${post.username}</span>
+                    </div>
+                    ${mediaHtml}
+                    <p style="margin-top: 10px;">${post.content}</p>
+                    <div class="actions">
+                        <button class="like-btn" data-post-id="${post.id}" style="${isLiked}">
+                            ❤️ Like (${post.likesCount || 0})
+                        </button>
+                        <span class="comment-count" data-post-id="${post.id}">💬 Comments (${post.commentsCount || 0})</span>
+                    </div>
+
+                    <div class="comments-section">
+                        <div class="comments-list" data-post-id="${post.id}">
+                            <p style="font-size: 0.9em; color: #999; margin-left: 30px;">Loading comments...</p>
+                        </div>
+                        <div class="comment-input-row">
+                            <input type="text" data-post-id="${post.id}" placeholder="Add a comment..." maxlength="100">
+                            <button class="post-comment-btn" data-post-id="${post.id}" style="padding: 0 10px; width: auto; font-size: 1em;">
+                                Post
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Attaches event listeners for like and comment buttons after rendering.
+         * @param {string} postId - The ID of the post.
+         */
+        function attachPostEventListeners(postId) {
+             const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
+             if (!postElement) return;
+
+             // 1. Like Button
+             const likeBtn = postElement.querySelector('.like-btn');
+             if (likeBtn) {
+                 likeBtn.onclick = () => {
+                     socket.emit('likePost', { postId: postId, userId: currentUser.id });
+                 };
+             }
+
+             // 2. Comment Button
+             const commentInput = postElement.querySelector(`.comment-input-row input[data-post-id="${postId}"]`);
+             const commentPostBtn = postElement.querySelector(`.post-comment-btn[data-post-id="${postId}"]`);
+
+             // Event listener for the POST button
+             if (commentPostBtn && commentInput) {
+                 commentPostBtn.onclick = () => postComment(postId, commentInput.value);
+             }
+
+             // Event listener for the ENTER key on the input
+             if (commentInput) {
+                 commentInput.addEventListener('keypress', (e) => {
+                     if (e.key === 'Enter') {
+                         e.preventDefault();
+                         postComment(postId, commentInput.value);
+                     }
+                 });
+             }
+        }
+
+        async function loadFeed() {
+            const container = document.getElementById('posts-container');
+            container.innerHTML = '<h2>Loading Feed...</h2>';
+
+            try {
+                const response = await fetch('/api/posts');
+                const data = await response.json();
+
+                if (data.success && data.posts.length > 0) {
+                    container.innerHTML = '';
+                    data.posts.forEach(post => {
+                        container.innerHTML += renderPost(post);
+                    });
+
+                    // After all posts are rendered, fetch comments and attach listeners
+                    data.posts.forEach(post => {
+                        fetchComments(post.id); // Fetch comments immediately after rendering the post structure
+                        attachPostEventListeners(post.id); // Attach listeners
+                    });
+
+                } else {
+                    container.innerHTML = '<p>No posts found. Be the first to post!</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching feed:', error);
+                container.innerHTML = '<p>Failed to load feed due to a server error.</p>';
+            }
+        }
+
+
+        async function handlePostStory() {
+            const storyText = document.getElementById('story-text').value.trim();
+            const mediaFile = document.getElementById('photo-upload').files[0];
+            const mediaUrl = ''; // Placeholder for production: should be the URL of the uploaded file
+
+            if (!storyText && !mediaFile) {
+                alert('Please enter some text or select a file.');
                 return;
             }
-            const fileInput = document.getElementById('photo-upload');
-            const storyText = document.getElementById('story-text').value;
-            if (!storyText && !fileInput.files.length) {
-                document.getElementById('auth-message').textContent = 'Please add a story or upload a picture!';
-                setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
-                return;
-            }
-            let mediaUrl = null;
-            if (fileInput.files.length > 0) {
-                document.getElementById('auth-message').textContent = 'Media upload is not fully implemented on the server yet. Using placeholder URL.';
-                setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
-                mediaUrl = 'https://placehold.co/600x400/FF385C/FFFFFF?text=SupaGram+Media';
-            }
+
+            // In a real application, you would upload mediaFile here and get a mediaUrl back.
+            // For this project, we just use the API endpoint directly.
+
             try {
                 const response = await fetch('/api/post', {
                     method: 'POST',
@@ -984,519 +1067,357 @@
                     body: JSON.stringify({
                         user_id: currentUser.id,
                         username: currentUser.username,
-                        profilePicUrl: currentUser.profilePicUrl, // NEW: Pass profile pic URL
                         content: storyText,
                         media_url: mediaUrl
                     })
                 });
+
                 const data = await response.json();
-                if (response.ok && data.success) {
-                    // Include commentsCount in the new post object for initial rendering
-                    const newPost = { ...data.post, commentsCount: 0 };
-                    socket.emit('newPost', newPost);
-                    renderPost(newPost);
+
+                if (data.success) {
+                    // Clear inputs
                     document.getElementById('story-text').value = '';
-                    fileInput.value = '';
-                    document.getElementById('auth-message').textContent = 'Post submitted successfully!';
-                    setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
+                    document.getElementById('photo-upload').value = '';
+
+                    // Add new post to the top of the feed and notify others via socket
+                    const container = document.getElementById('posts-container');
+                    container.insertAdjacentHTML('afterbegin', renderPost(data.post));
+                    attachPostEventListeners(data.post.id);
+                    fetchComments(data.post.id);
+
+                    socket.emit('newPost', data.post);
+
                 } else {
-                    document.getElementById('auth-message').textContent = 'Post submission failed: ' + (data.message || 'Unknown error.');
-                    setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
-                }
-            } catch (e) {
-                console.error('Post API Error:', e);
-                 document.getElementById('auth-message').textContent = 'An error occurred during post submission.';
-                 setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
-            }
-        }
-        function sendLike(postId) {
-            if (!currentUser.id) {
-                 document.getElementById('auth-message').textContent = 'Please log in to like a post.';
-                 document.getElementById('auth-modal').style.display = 'flex';
-                 return;
-            }
-            socket.emit('likePost', { postId: postId, userId: currentUser.id });
-            console.log(`Sending like for post: ${postId}`);
-        }
-        // --- NEW: COMMENT/REPLY LOGIC ---
-
-        function openReplyModal(postId, username, content, mediaUrl) {
-            if (!currentUser.id) {
-                 document.getElementById('auth-message').textContent = 'Please log in to reply.';
-                 document.getElementById('auth-modal').style.display = 'flex';
-                 return;
-            }
-            const modal = document.getElementById('reply-modal');
-            const replyContent = document.getElementById('reply-post-content');
-            const postReplyBtn = document.getElementById('post-reply-btn');
-
-            // Set the post ID on the modal button
-            postReplyBtn.setAttribute('data-post-id', postId);
-
-            // Construct the post snippet for the modal
-            const mediaHtml = mediaUrl ? `<img src="${mediaUrl}" alt="Media" style="max-width:100%; height: auto; border-radius: 6px; margin-top: 5px;">` : '';
-
-            replyContent.innerHTML = `
-                <strong>${username}</strong>: ${content}
-                ${mediaHtml}
-            `;
-
-            document.getElementById('reply-input').value = '';
-            document.getElementById('reply-message').textContent = '';
-            modal.style.display = 'flex';
-            document.getElementById('reply-input').focus();
-        }
-
-        // Function to render a single comment
-        function renderComment(comment) {
-            const container = document.getElementById(`comments-container-${comment.postId}`);
-            if (!container) return;
-
-            // Clear the initial "No replies yet" message if it exists
-            const noReplies = container.querySelector('p');
-            if (noReplies && noReplies.textContent.includes('No replies yet')) {
-                 container.innerHTML = '';
-            }
-
-            // Show the View Comments button once a comment is added
-            document.getElementById(`view-comments-btn-${comment.postId}`).style.display = 'inline-block';
-
-            const commentElement = document.createElement('div');
-            commentElement.className = 'comment-item';
-            // Use 'C' for comment default if pic is missing
-            const avatarUrl = comment.profilePicUrl || 'https://placehold.co/25x25/007bff/FFFFFF?text=C';
-
-            commentElement.innerHTML = `
-                <img class="user-avatar" src="${avatarUrl}" alt="${comment.username}'s profile picture" style="width: 25px; height: 25px; margin-top: 3px; margin-right: 5px;">
-                <div class="comment-text">
-                    <strong>${comment.username || 'Anon'}</strong>: ${comment.content}
-                </div>
-            `;
-            container.appendChild(commentElement);
-        }
-
-        // Function to load existing comments for a post
-        async function loadComments(postId) {
-            try {
-                // NOTE: This API route needs to be implemented in server.js!
-                const response = await fetch(`/api/comments/${postId}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    const container = document.getElementById(`comments-container-${postId}`);
-                    if (container) {
-                        container.innerHTML = ''; // Clear existing comments
-                        data.comments.forEach(c => renderComment({ ...c, postId })); // Pass postId to renderComment
-
-                        const viewBtn = document.getElementById(`view-comments-btn-${postId}`);
-                        if (data.comments.length > 0) {
-                            container.style.display = 'none'; // Keep hidden initially
-                            viewBtn.style.display = 'inline-block';
-                            viewBtn.textContent = `View all ${data.comments.length} replies`;
-
-                            // Update the comments count span
-                            const countSpan = document.getElementById(`comments-count-${postId}`);
-                            if (countSpan) countSpan.textContent = data.comments.length;
-                        } else {
-                             container.innerHTML = '<p style="font-size: 0.8em; color: #888;">No replies yet.</p>';
-                             viewBtn.style.display = 'none';
-                        }
-                    }
-                } else {
-                    console.error('Failed to load comments:', response.status);
-                    document.getElementById(`comments-container-${postId}`).innerHTML = '<p style="font-size: 0.8em; color: #888;">Could not load replies.</p>';
+                    alert('Post failed: ' + data.message);
                 }
             } catch (error) {
-                console.error('Error fetching comments:', error);
+                console.error('Post story error:', error);
+                alert('Server error during post.');
             }
         }
 
-        // Function to send a reply/comment (from the Modal)
-        function sendReplyFromModal() {
-            const postReplyBtn = document.getElementById('post-reply-btn');
-            const postId = postReplyBtn.getAttribute('data-post-id');
-            const inputElement = document.getElementById('reply-input');
-            const content = inputElement.value.trim();
 
-            if (!content) return;
+        // --- 3. CHAT LOGIC (unchanged) ---
 
-            const commentData = {
-                postId: postId,
-                userId: currentUser.id,
-                username: currentUser.username,
-                content: content,
-                profilePicUrl: currentUser.profilePicUrl // Include profile picture URL
-            };
-
-            // NOTE: The server.js implementation needs to handle saving this comment
-            socket.emit('newComment', commentData);
-            inputElement.value = ''; // Clear input immediately
-
-            // Provide immediate feedback and close modal
-            document.getElementById('reply-message').textContent = 'Reply posted!';
-            setTimeout(() => document.getElementById('reply-modal').style.display = 'none', 500);
-        }
-
-        // Function to toggle comments visibility
-        function toggleCommentsSection(postId) {
-            const section = document.getElementById(`comments-section-${postId}`);
-            const button = document.getElementById(`view-comments-btn-${postId}`);
-            const isVisible = section.style.display === 'block';
-
-            if (isVisible) {
-                section.style.display = 'none';
-                button.textContent = `View all ${document.getElementById(`comments-container-${postId}`).childElementCount} replies`;
-            } else {
-                section.style.display = 'block';
-                button.textContent = 'Hide replies';
-            }
-        }
-        // --- 3. SOCKET.IO HANDLERS (UPDATED with Comment Listener) ---
-        socket.on('authSuccess', () => {
-            console.log('Socket authenticated successfully.');
-        });
-        socket.on('authFailed', () => {
-            console.error('Socket authentication failed. Forcing logout.');
-            logoutUser();
-        });
-        socket.on('onlineUsers', (users) => {
-            onlineUsers = users.filter(u => u.userId !== currentUser.id);
-            console.log('Received updated online users list:', onlineUsers);
-            renderOnlineUsers();
-        });
-        socket.on('updateFeed', (post) => {
-            console.log('Received new post for feed:', post);
-            renderPost(post);
-        });
-        socket.on('likeUpdate', (data) => {
-            console.log(`Post ${data.postId} now has ${data.newCount} likes.`);
-            const likeCountSpan = document.getElementById(`likes-${data.postId}`);
-            if (likeCountSpan) {
-                likeCountSpan.textContent = data.newCount;
-                const parentActions = likeCountSpan.closest('.actions');
-                if (parentActions) {
-                     parentActions.style.backgroundColor = 'var(--background-color)';
-                     setTimeout(() => parentActions.style.backgroundColor = 'transparent', 500);
-                }
-            }
-        });
-        // NEW: Real-time comment update listener
-        socket.on('updateComments', (comment) => {
-             console.log('Received new comment:', comment);
-             renderComment(comment);
-             // Also update the count span
-             const countSpan = document.getElementById(`comments-count-${comment.postId}`);
-             if (countSpan) {
-                 countSpan.textContent = (parseInt(countSpan.textContent) || 0) + 1;
-             }
-        });
-        socket.on('newPrivateMessage', (msg) => {
-            const isRelevantChat = currentRecipient &&
-                                   ((msg.senderId === currentRecipient.userId && msg.recipientId === currentUser.id) ||
-                                   (msg.senderId === currentUser.id && msg.recipientId === currentRecipient.userId));
-
-            if (msg.recipientId === currentUser.id && (!currentRecipient || msg.senderId !== currentRecipient.userId)) {
-                unreadCounts[msg.senderId] = (unreadCounts[msg.senderId] || 0) + 1;
-                renderOnlineUsers();
-            }
-
-            if (isRelevantChat) {
-                 appendMessage(msg, msg.senderId === currentUser.id ? 'sent' : 'received');
-            } else {
-                 console.log('Received message for a different chat, adding to unread count.', msg);
-            }
-        });
-        // --- 4. USER INTERACTION FUNCTIONS (Chat Logic) ---
-        function showSection(sectionId) {
-            if (!currentUser.id) {
-                document.getElementById('auth-message').textContent = 'Please log in to access this page.';
-                document.getElementById('auth-modal').style.display = 'flex';
-                return;
-            }
-            document.getElementById('for-you-feed').style.display = 'none';
-            document.getElementById('private-chat').style.display = 'none';
-            document.getElementById(sectionId).style.display = (sectionId === 'private-chat') ? 'flex' : 'block';
-
-            if (sectionId === 'private-chat') {
-                socket.emit('userOnline', { userId: currentUser.id, username: currentUser.username });
-                renderOnlineUsers();
-            }
-        }
-
-        function toggleUserSidebar() {
-            const sidebar = document.getElementById('online-users-sidebar');
-            const button = document.getElementById('menu-toggle-btn');
-            const isSidebarOpen = sidebar.classList.toggle('open');
-            button.textContent = isSidebarOpen ? '✕' : '☰';
-        }
-
-        function renderOnlineUsers() {
-            const listContainer = document.getElementById('online-users-list');
-            listContainer.innerHTML = '';
-
-            const onlineIds = new Set(onlineUsers.map(u => u.userId));
-            let displayUsers = [...onlineUsers];
-
-            if (currentRecipient && !onlineIds.has(currentRecipient.userId)) {
-                 displayUsers.push({...currentRecipient, isOffline: true });
-            }
-
-            const uniqueUsersMap = new Map();
-            displayUsers.forEach(user => {
-                if (user.userId !== currentUser.id) {
-                    if (!uniqueUsersMap.has(user.userId) || uniqueUsersMap.get(user.userId).isOffline) {
-                        uniqueUsersMap.set(user.userId, user);
-                    }
-                }
-            });
-            const uniqueUsers = Array.from(uniqueUsersMap.values());
-
-            if (uniqueUsers.length === 0) {
-                 listContainer.innerHTML = '<p style="font-size: 0.9em; color: #999;">No other users online yet.</p>';
-                 return;
-            }
-            uniqueUsers.sort((a, b) => {
-                 const aOnline = onlineIds.has(a.userId) && !a.isOffline;
-                 const bOnline = onlineIds.has(b.userId) && !b.isOffline;
-                 const aCount = unreadCounts[a.userId] || 0;
-                 const bCount = unreadCounts[b.userId] || 0;
-
-                 if (aCount > 0 && bCount === 0) return -1;
-                 if (aCount === 0 && bCount > 0) return 1;
-
-                 if (aOnline && !bOnline) return -1;
-                 if (!aOnline && bOnline) return 1;
-
-                 return a.username.localeCompare(b.username);
-            });
-
-            uniqueUsers.forEach(user => {
-                const isOnline = onlineIds.has(user.userId) && !user.isOffline;
-                const statusClass = isOnline ? 'status-online' : 'status-offline';
-                const statusText = isOnline ? 'Online' : 'Offline';
-
-                const count = unreadCounts[user.userId] || 0;
-                const badgeHtml = count > 0 ? `<span class="notification-badge">${count}</span>` : '';
-
-                const userElement = document.createElement('div');
-                userElement.className = 'user-item';
-                if (currentRecipient && currentRecipient.userId === user.userId) {
-                    userElement.style.backgroundColor = '#e6f0ff';
-                }
-                userElement.setAttribute('data-user-id', user.userId);
-                userElement.addEventListener('click', () => startChat(user));
-                userElement.innerHTML = `
-                    <div class="info">
-                        <span>${user.username}</span>
-                        <span class="user-status ${statusClass}" title="${statusText}"></span>
-                    </div>
-                    ${badgeHtml}
-                `;
-                listContainer.appendChild(userElement);
-            });
-
-             if (currentRecipient) {
-                const recipientOnline = onlineUsers.some(u => u.userId === currentRecipient.userId);
-                document.getElementById('chat-recipient-name').textContent =
-                    `${currentRecipient.username} (${recipientOnline ? 'Online' : 'Offline'})`;
-             }
-        }
-
-        async function startChat(recipient) {
-            currentRecipient = recipient;
-
-            unreadCounts[recipient.userId] = 0;
-
-            document.getElementById('chat-recipient-name').textContent = `${recipient.username} (loading...)`;
+        /**
+         * Clears the chat window.
+         */
+        function clearChatWindow() {
             document.getElementById('chat-window').innerHTML = '';
-            document.getElementById('chat-input').disabled = false;
-            // Ensure the send button is enabled
-            document.getElementById('send-btn').disabled = false;
-
-            renderOnlineUsers();
-
-            await loadChatHistory(currentUser.id, recipient.userId, recipient.username);
-
-            if (window.innerWidth <= 768) {
-                document.getElementById('online-users-sidebar').classList.remove('open');
-                document.getElementById('menu-toggle-btn').textContent = '☰';
-            }
         }
 
-        async function loadChatHistory(senderId, recipientId, recipientUsername) {
+        /**
+         * Renders a single message in the chat window.
+         * @param {Object} message - The message object.
+         */
+        function renderMessage(message) {
+            const chatWindow = document.getElementById('chat-window');
+            // Determine if the message is 'sent' (by current user) or 'received'
+            const messageClass = message.sender_id === currentUser.id ? 'sent' : 'received';
+            const messageHtml = `
+                <div class="message ${messageClass}">
+                    ${message.message}
+                    </div>
+            `;
+            chatWindow.insertAdjacentHTML('beforeend', messageHtml);
+            chatWindow.scrollTop = chatWindow.scrollHeight; // Auto-scroll to bottom
+        }
+
+        /**
+         * Fetches and renders chat history for the current recipient.
+         */
+        async function loadChatHistory() {
+            if (!currentRecipient) return;
+
+            clearChatWindow();
+            // Display 'Loading...'
+            const chatWindow = document.getElementById('chat-window');
+            chatWindow.innerHTML = '<p style="text-align: center; color: #999;">Loading chat history...</p>';
+
             try {
-                const response = await fetch(`/api/chat/history/${recipientId}?senderId=${senderId}`);
+                // In a production app, the senderId (currentUser.id) would likely be derived from a server-verified token,
+                // but here we pass it as a query param for simplicity.
+                const response = await fetch(`/api/chat/${currentRecipient.userId}?senderId=${currentUser.id}`);
                 const data = await response.json();
 
-                const chatWindow = document.getElementById('chat-window');
-                chatWindow.innerHTML = '';
-                if (response.ok && data.messages.length > 0) {
-                    data.messages.forEach(msg => {
-                        const type = (msg.senderId === senderId) ? 'sent' : 'received';
-                        appendMessage(msg, type, false);
-                    });
-                } else {
-                    chatWindow.innerHTML = `<p style="text-align: center; color: #999;">Start a new conversation with ${recipientUsername}.</p>`;
-                }
-                 const recipientOnline = onlineUsers.some(u => u.userId === recipientId);
-                 document.getElementById('chat-recipient-name').textContent =
-                     `${recipientUsername} (${recipientOnline ? 'Online' : 'Offline'})`;
+                clearChatWindow(); // Clear 'Loading...'
 
-                chatWindow.scrollTop = chatWindow.scrollHeight;
+                if (data.success && data.messages.length > 0) {
+                    data.messages.forEach(renderMessage);
+                } else {
+                    chatWindow.innerHTML = `<p style="text-align: center; color: #999;">Start your conversation with ${currentRecipient.username}!</p>`;
+                }
             } catch (error) {
                 console.error('Error fetching chat history:', error);
-                document.getElementById('chat-window').innerHTML = `<p style="color: red; text-align: center;">Failed to load chat history.</p>`;
+                clearChatWindow();
+                chatWindow.innerHTML = `<p style="text-align: center; color: var(--primary-color);">Failed to load chat history.</p>`;
             }
         }
 
-        function appendMessage(msg, type) {
-            const chatWindow = document.getElementById('chat-window');
-            const isNearBottom = chatWindow.scrollHeight - chatWindow.clientHeight <= chatWindow.scrollTop + 100;
+        /**
+         * Selects a user for private chat.
+         * @param {string} userId - The ID of the user to chat with.
+         * @param {string} username - The username of the user.
+         */
+        function selectRecipient(userId, username) {
+            currentRecipient = { userId, username };
+            document.getElementById('chat-recipient-name').textContent = username;
+            document.getElementById('chat-input').disabled = false;
+            document.getElementById('send-btn').disabled = false;
 
-            const msgElement = document.createElement('div');
-            msgElement.className = `message ${type}`;
+            // Clear unread count for this user
+            unreadCounts[userId] = 0;
+            updateOnlineUsersList(); // Update the sidebar badge
 
-            msgElement.innerHTML = `
-                <small style="opacity: 0.7; display: block; margin-bottom: 2px; font-style: italic;">
-                    ${new Date(msg.timestamp).toLocaleTimeString()}
-                </small>
-                ${msg.message}
-            `;
-
-            chatWindow.appendChild(msgElement);
-
-            if (isNearBottom) {
-                chatWindow.scrollTop = chatWindow.scrollHeight;
-            }
+            // Load messages for the newly selected user
+            loadChatHistory();
         }
 
-        function sendPrivateMessage() {
-            if (!currentUser.id) {
-                 document.getElementById('auth-message').textContent = 'Please log in to chat.';
-                 document.getElementById('auth-modal').style.display = 'flex';
-                 return;
-            }
-            if (!currentRecipient) {
-                document.getElementById('auth-message').textContent = 'Please select a user to chat with.';
-                setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
+        /**
+         * Renders and updates the list of online users in the sidebar.
+         */
+        function updateOnlineUsersList() {
+            const list = document.getElementById('online-users-list');
+            list.innerHTML = ''; // Clear the list
+
+            if (onlineUsers.length === 0) {
+                list.innerHTML = '<p style="font-size: 0.9em; color: #999;">No other users are currently online.</p>';
                 return;
             }
-            const chatInput = document.getElementById('chat-input');
-            const fileInput = document.getElementById('chat-file-upload');
-            const message = chatInput.value.trim();
 
-            if (!message && fileInput.files.length === 0) return;
+            onlineUsers.forEach(user => {
+                if (user.userId === currentUser.id) return; // Don't list self
 
-            const msgData = {
-                senderId: currentUser.id,
-                recipientId: currentRecipient.userId,
-                message: message,
-            };
+                const isOnline = true; // All users in this list are online by definition
+                const isSelected = currentRecipient && currentRecipient.userId === user.userId;
+                const badgeCount = unreadCounts[user.userId] || 0;
+                const badgeHtml = badgeCount > 0 ? `<span class="notification-badge">${badgeCount}</span>` : '';
 
-            // NOTE: Full file transfer is server-dependent, here we just confirm the action
-            if (fileInput.files.length > 0) {
-                 msgData.message += ` [Attached File: ${fileInput.files[0].name}]`;
-                 // Clear the file input after confirming
-                 fileInput.value = '';
-            }
-
-            socket.emit('privateMessage', msgData);
-            chatInput.value = '';
+                const userHtml = `
+                    <div class="user-item" data-user-id="${user.userId}" onclick="selectRecipient('${user.userId}', '${user.username}')" style="${isSelected ? 'background-color: #f0f0f0;' : ''}">
+                        <div class="info">
+                            <img class="user-avatar" src="${currentUser.profilePicUrl}" alt="Profile" style="width: 30px; height: 30px; border-width: 1px;">
+                            <span>${user.username}</span>
+                        </div>
+                        ${badgeHtml}
+                        <div class="user-status status-online"></div>
+                    </div>
+                `;
+                list.innerHTML += userHtml;
+            });
         }
 
-        // --- CHAT INPUT FUNCTIONALITY ---
+        /**
+         * Sends a private message via WebSocket.
+         */
+        function sendPrivateMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
 
+            if (!message || !currentRecipient) return;
+
+            const messageData = {
+                senderId: currentUser.id,
+                recipientId: currentRecipient.userId,
+                message: message
+            };
+
+            // 1. Emit the message to the server
+            socket.emit('privateMessage', messageData);
+
+            // 2. Clear the input
+            input.value = '';
+        }
+
+        /**
+         * Toggles the emoji picker popover visibility.
+         */
         function toggleEmojiPicker() {
             const picker = document.getElementById('emoji-picker-popover');
             picker.style.display = picker.style.display === 'block' ? 'none' : 'block';
         }
 
-        function selectEmoji(event) {
-            const emoji = event.target.getAttribute('data-emoji');
-            if (emoji) {
-                const chatInput = document.getElementById('chat-input');
-                chatInput.value += emoji;
-                chatInput.focus(); // Keep focus for typing
-            }
+        /**
+         * Inserts an emoji into the chat input field.
+         * @param {string} emoji - The emoji character.
+         */
+        function insertEmoji(emoji) {
+            const chatInput = document.getElementById('chat-input');
+            if (chatInput.disabled) return;
+            chatInput.value += emoji;
+            toggleEmojiPicker(); // Close picker after selection
         }
 
-        function handleFileButtonClick() {
-            if (!currentRecipient) {
-                 document.getElementById('auth-message').textContent = 'Please select a user to send a file to.';
-                 setTimeout(() => document.getElementById('auth-message').textContent = '', 3000);
-                 return;
-            }
-            // Programmatically click the hidden file input
-            document.getElementById('chat-file-upload').click();
-        }
+        // --- 4. SOCKET.IO EVENT HANDLERS (UPDATED for Comments) ---
 
-        function handleFileUpload() {
-            const fileInput = document.getElementById('chat-file-upload');
-            if (fileInput.files.length > 0) {
-                document.getElementById('auth-message').textContent = `File selected: ${fileInput.files[0].name}. Press Send to attach.`;
-                setTimeout(() => document.getElementById('auth-message').textContent = '', 4000);
+        socket.on('connect', () => {
+            console.log('Connected to socket server.');
+            // Re-emit userOnline if we have a valid session
+            if (currentUser.id) {
+                 socket.emit('userOnline', { userId: currentUser.id, username: currentUser.username });
             }
-        }
+        });
 
-        // --- 5. INITIALIZATION ---
+        // Online Users Broadcast
+        socket.on('onlineUsers', (users) => {
+            onlineUsers = users;
+            updateOnlineUsersList();
+        });
+
+        // New Private Message Received
+        socket.on('newPrivateMessage', (message) => {
+            // Check if the message is for the currently open chat
+            if (currentRecipient && (message.sender_id === currentRecipient.userId || message.recipient_id === currentRecipient.userId)) {
+                renderMessage(message);
+            } else if (message.recipient_id === currentUser.id) {
+                // It's a message for the current user, but the chat is not open.
+                // Increment unread count and update the sidebar badge.
+                const senderId = message.sender_id;
+                unreadCounts[senderId] = (unreadCounts[senderId] || 0) + 1;
+                updateOnlineUsersList();
+                console.log(`New message from ${senderId}. Unread count: ${unreadCounts[senderId]}`);
+            }
+            // If the message is from the current user (echo), it's already rendered in renderMessage.
+        });
+
+
+        // Feed Update
+        socket.on('updateFeed', (post) => {
+            const container = document.getElementById('posts-container');
+            const postElement = document.querySelector(`.post[data-post-id="${post.id}"]`);
+
+            if (!postElement) {
+                // New post received, prepend it to the feed
+                container.insertAdjacentHTML('afterbegin', renderPost(post));
+                attachPostEventListeners(post.id);
+                fetchComments(post.id); // Load comments for the new post
+                console.log('New post added to feed:', post.id);
+            }
+        });
+
+        // Like Count Update
+        socket.on('likeUpdate', (data) => {
+            const { postId, newCount } = data;
+            const likeBtn = document.querySelector(`.like-btn[data-post-id="${postId}"]`);
+            if (likeBtn) {
+                likeBtn.textContent = `❤️ Like (${newCount})`;
+                // Optional: Toggle visual like state if needed, though the server handles the actual like/unlike logic
+            }
+        });
+
+        // NEW: Comment Update
+        socket.on('commentUpdate', (data) => {
+            const { postId, newComment, newCount } = data;
+            const commentsContainer = document.querySelector(`.comments-list[data-post-id="${postId}"]`);
+            const commentCountEl = document.querySelector(`.comment-count[data-post-id="${postId}"]`);
+
+            if (commentsContainer) {
+                 // Remove "Be the first to comment!" placeholder
+                 const placeholder = commentsContainer.querySelector('p');
+                 if (placeholder && placeholder.textContent.includes('Be the first to comment!')) {
+                    commentsContainer.innerHTML = '';
+                 } else if (placeholder && placeholder.textContent.includes('Loading comments...')) {
+                    // If it was loading, we re-fetch to ensure order and consistency
+                    fetchComments(postId);
+                    return;
+                 }
+
+                 // Prepend the new comment to the list
+                 commentsContainer.insertAdjacentHTML('beforeend', renderComment(newComment));
+            }
+
+            if (commentCountEl) {
+                commentCountEl.textContent = `💬 Comments (${newCount})`;
+            }
+        });
+
+
+        // --- 5. INITIALIZATION AND EVENT BINDING ---
+
         document.addEventListener('DOMContentLoaded', () => {
+            loadInitialTheme(); // Set the theme
 
-            // --- Attach Event Listeners ---
-            document.getElementById('auth-primary-btn').addEventListener('click', function() {
-                const isLogin = currentAuthMode === 'login';
-                isLogin ? loginUser() : signupUser();
-            });
+            // Auth/App Initialization
+            checkAuthStatus();
 
+            // Auth Modal Buttons
             document.getElementById('auth-toggle-btn').addEventListener('click', toggleAuthMode);
-            document.getElementById('for-you-btn').addEventListener('click', () => showSection('for-you-feed'));
-            document.getElementById('chat-btn').addEventListener('click', () => showSection('private-chat'));
-            document.getElementById('logout-btn').addEventListener('click', logoutUser);
-            document.getElementById('post-story-btn').addEventListener('click', uploadPost);
-            document.getElementById('send-btn').addEventListener('click', sendPrivateMessage);
-            document.getElementById('menu-toggle-btn').addEventListener('click', toggleUserSidebar);
-
-            // Settings Event Listeners
-            document.getElementById('settings-btn').addEventListener('click', toggleSettingsModal);
-            document.getElementById('close-settings-btn').addEventListener('click', toggleSettingsModal);
-            document.getElementById('theme-light-btn').addEventListener('click', () => setTheme('light'));
-            document.getElementById('theme-dark-btn').addEventListener('click', () => setTheme('dark'));
-            document.getElementById('theme-system-btn').addEventListener('click', () => setTheme('system'));
-
-            // NEW: Reply Modal Event Listeners
-            document.getElementById('close-reply-modal-btn').addEventListener('click', () => document.getElementById('reply-modal').style.display = 'none');
-            document.getElementById('post-reply-btn').addEventListener('click', sendReplyFromModal);
-
-            document.getElementById('reply-input').addEventListener('keypress', function(event) {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault(); // Prevent newline
-                    sendReplyFromModal();
+            document.getElementById('auth-primary-btn').addEventListener('click', handleAuth);
+            document.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && document.getElementById('auth-modal').style.display === 'flex') {
+                    handleAuth();
                 }
             });
 
+            // Navigation Buttons
+            document.getElementById('logout-btn').addEventListener('click', handleLogout);
+            document.getElementById('settings-btn').addEventListener('click', toggleSettingsModal);
 
-            // NEW: Feed Upload Icon Listener
-             document.getElementById('upload-icon-btn').addEventListener('click', function() {
-                 document.getElementById('photo-upload').click();
-             });
+            // Theme Setting Buttons
+            document.getElementById('theme-light-btn').addEventListener('click', () => setTheme('light'));
+            document.getElementById('theme-dark-btn').addEventListener('click', () => setTheme('dark'));
+            document.getElementById('theme-system-btn').addEventListener('click', () => setTheme('system'));
+            document.getElementById('close-settings-btn').addEventListener('click', toggleSettingsModal);
 
-            // Chat Input Functionality Listeners
-            document.getElementById('emoji-btn').addEventListener('click', toggleEmojiPicker);
-            document.querySelectorAll('.emoji-item').forEach(item => {
-                item.addEventListener('click', selectEmoji);
+            // Feed/Post Buttons
+            document.getElementById('post-story-btn').addEventListener('click', handlePostStory);
+            document.getElementById('upload-icon-btn').addEventListener('click', () => {
+                document.getElementById('photo-upload').click();
             });
 
-            document.getElementById('file-btn').addEventListener('click', handleFileButtonClick);
-            document.getElementById('chat-file-upload').addEventListener('change', handleFileUpload);
+
+            // Chat Buttons
+            const forYouBtn = document.getElementById('for-you-btn');
+            const chatBtn = document.getElementById('chat-btn');
+            const forYouSection = document.getElementById('for-you-feed');
+            const chatSection = document.getElementById('private-chat');
+
+            forYouBtn.addEventListener('click', () => {
+                forYouSection.style.display = 'block';
+                chatSection.style.display = 'none';
+            });
+            chatBtn.addEventListener('click', () => {
+                forYouSection.style.display = 'none';
+                chatSection.style.display = 'flex';
+                // Close sidebar on desktop when opening chat to prevent weird layout issue
+                document.getElementById('online-users-sidebar').classList.remove('open');
+            });
 
 
-            document.getElementById('chat-input').addEventListener('keypress', function(event) {
-                if (event.key === 'Enter' && !this.disabled) {
+            // Chat Specific
+            document.getElementById('menu-toggle-btn').addEventListener('click', () => {
+                document.getElementById('online-users-sidebar').classList.toggle('open');
+            });
+            document.getElementById('send-btn').addEventListener('click', sendPrivateMessage);
+            document.getElementById('chat-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
                     sendPrivateMessage();
                 }
             });
 
-            // --- Initial Checks ---
-            loadInitialTheme(); // Load theme preference immediately
+            // Emoji Picker
+            document.getElementById('emoji-btn').addEventListener('click', toggleEmojiPicker);
+            document.querySelectorAll('.emoji-item').forEach(item => {
+                item.addEventListener('click', () => insertEmoji(item.dataset.emoji));
+            });
 
+            // Placeholder File Button
+            document.getElementById('file-btn').addEventListener('click', () => {
+                document.getElementById('chat-file-upload').click();
+            });
+
+            // Placeholder File Upload logic
+            document.getElementById('chat-file-upload').addEventListener('change', function() {
+                if (this.files.length > 0) {
+                     alert('File selected! In a real application, the file would be uploaded and a URL would be sent via chat.');
+                     this.value = ''; // Clear the file input
+                }
+            });
+        });
+
+        // Function to check and restore authentication state
+        function checkAuthStatus() {
             const storedToken = localStorage.getItem('userToken');
             const storedUserData = localStorage.getItem('currentUserData');
             if (storedToken && storedUserData) {
@@ -1505,11 +1426,13 @@
                     document.getElementById('auth-modal').style.display = 'none';
                     document.getElementById('for-you-feed').style.display = 'block';
                     document.getElementById('chat-btn').style.display = 'inline-flex';
+
                     currentUser.token = storedToken;
                     currentUser.id = userData.id;
                     currentUser.username = userData.username;
                     // Load saved profile pic or use default
                     currentUser.profilePicUrl = userData.profilePicUrl || currentUser.profilePicUrl;
+
                     socket.emit('userOnline', { userId: currentUser.id, username: currentUser.username });
                     loadFeed();
                 } catch (e) {
@@ -1522,7 +1445,7 @@
                 document.getElementById('for-you-feed').style.display = 'none';
                 document.getElementById('chat-btn').style.display = 'none';
             }
-        });
+        }
     </script>
 </body>
 </html>

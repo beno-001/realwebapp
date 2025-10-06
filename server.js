@@ -111,7 +111,7 @@ app.post('/api/post', async (req, res) => {
         const success = await db.createPost(postId, user_id, username, content, media_url);
 
         if (success) {
-            const newPost = { id: postId, user_id, username, content, media_url, likesCount: 0 };
+            const newPost = { id: postId, user_id, username, content, media_url, likesCount: 0, commentsCount: 0 }; // Initialize counts
             res.json({ success: true, message: 'Post created.', post: newPost });
         } else {
             return res.status(500).json({ success: false, message: 'Failed to create post.' });
@@ -133,13 +133,56 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
-// GET: Fetch private chat history between two users
-app.get('/api/chat/history/:recipientId', async (req, res) => {
-    const { recipientId } = req.params;
-    const { senderId } = req.query;
+// NEW: POST a comment
+app.post('/api/comment', async (req, res) => {
+    const { post_id, user_id, username, content } = req.body;
+    if (!post_id || !user_id || !content) {
+        return res.status(400).json({ success: false, message: 'Post ID, User ID, and content are required.' });
+    }
 
-    if (!recipientId || !senderId) {
-        return res.status(400).json({ success: false, message: 'Sender ID and Recipient ID are required.' });
+    try {
+        const commentId = uuidv4();
+        const success = await db.createComment(commentId, post_id, user_id, username, content);
+
+        if (success) {
+            const newComment = { id: commentId, post_id, user_id, username, content, timestamp: new Date().toISOString() };
+
+            // Broadcast the new comment to all connected clients for real-time update
+            io.emit('commentUpdate', {
+                postId: post_id,
+                newComment: newComment,
+                newCount: await db.getCommentCount(post_id)
+            });
+
+            res.json({ success: true, message: 'Comment created.', comment: newComment });
+        } else {
+            return res.status(500).json({ success: false, message: 'Failed to create comment.' });
+        }
+    } catch (error) {
+        console.error('Comment creation error:', error);
+        res.status(500).json({ success: false, message: 'Database error creating comment.' });
+    }
+});
+
+// NEW: GET comments for a specific post
+app.get('/api/comments/:postId', async (req, res) => {
+    const { postId } = req.params;
+    try {
+        const comments = await db.getCommentsForPost(postId);
+        res.json({ success: true, comments });
+    } catch (error) {
+        console.error('Comment fetch error:', error);
+        res.status(500).json({ success: false, message: 'Database error fetching comments.' });
+    }
+});
+
+// GET: Fetch private chat history between two users
+app.get('/api/chat/:recipientId', async (req, res) => {
+    const { recipientId } = req.params;
+    const { senderId } = req.query; // Assuming senderId is passed as a query param for simplicity/testing
+
+    if (!senderId || !recipientId) {
+        return res.status(400).json({ success: false, message: 'Both senderId and recipientId are required.' });
     }
 
     try {
@@ -147,80 +190,62 @@ app.get('/api/chat/history/:recipientId', async (req, res) => {
         res.json({ success: true, messages });
     } catch (error) {
         console.error('Chat history fetch error:', error);
-        res.status(500).json({ success: false, message: 'Database error fetching chat history.' });
+        res.status(500).json({ success: false, message: 'Server error fetching chat history.' });
     }
 });
 
 
-// --- Socket.IO Connection and Handlers ---
+// --- WebSocket (Socket.io) Logic ---
 
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
-    // --- 1. User Presence Tracking ---
+    // --- 1. User Presence and Real-time Chat ---
 
-    socket.on('userOnline', async ({ userId, username }) => {
-        if (!userId || !username) {
-            console.warn('userOnline event missing userId or username.');
-            return;
-        }
-
-        try {
-            await db.setOnlineStatus(userId, username, socket.id);
-            socket.userId = userId; // Store userId on the socket for easier lookup
-            console.log(`User ${username} (${userId}) is now online.`);
-            broadcastOnlineUsers();
-        } catch (err) {
-            console.error("Error setting user online status:", err);
-        }
-    });
-
-    socket.on('userOffline', async ({ userId }) => {
+    // A user logs in or reconnects
+    socket.on('userOnline', async (data) => {
+        const { userId, username } = data;
         if (!userId) return;
+
         try {
-            await db.removeOnlineStatusByUserId(userId);
-            console.log(`User ${userId} explicitly went offline.`);
-            delete socket.userId;
+            await db.userIsOnline(userId, socket.id, username);
+            socket.userId = userId; // Attach userId to the socket for easy lookup
+            broadcastOnlineUsers();
+            console.log(`${username} (${userId}) is now online.`);
+        } catch (err) {
+            console.error('Error setting user online:', err);
+        }
+    });
+
+    // Handle disconnect
+    socket.on('disconnect', async () => {
+        console.log('User disconnected:', socket.id);
+        try {
+            await db.userIsOffline(socket.id);
             broadcastOnlineUsers();
         } catch (err) {
-            console.error("Error removing user status:", err);
+            console.error('Error setting user offline:', err);
         }
     });
 
-    socket.on('disconnect', async () => {
-        if (socket.userId) {
-            try {
-                await db.removeOnlineStatusBySocketId(socket.id);
-                console.log(`User ${socket.userId} disconnected.`);
-                broadcastOnlineUsers();
-            } catch (err) {
-                console.error("Error removing user status on disconnect:", err);
-            }
-        }
-        console.log('User disconnected:', socket.id);
-    });
-
-    // --- 2. Private Messaging ---
-
-    socket.on('privateMessage', async (msg) => {
-        const { senderId, recipientId, message } = msg;
-
-        if (!senderId || !recipientId || !message) {
-            console.warn('Invalid private message data received.');
-            return;
-        }
+    // Handle private messages
+    socket.on('privateMessage', async (data) => {
+        const { senderId, recipientId, message } = data;
+        if (!senderId || !recipientId || !message) return;
 
         try {
+            // 1. Save the message to the database
             await db.savePrivateMessage(senderId, recipientId, message);
 
+            // 2. Prepare the full message object
             const fullMsg = {
-                senderId: senderId.toString(),
-                recipientId: recipientId.toString(),
-                message,
+                sender_id: senderId,
+                recipient_id: recipientId,
+                message: message,
                 timestamp: new Date().toISOString()
             };
 
-            // 2. Find recipient's socket ID and send
+            // 2. Deliver the message to the recipient if they are online
             const recipientSocketId = await db.getRecipientSocketId(recipientId);
             if (recipientSocketId) {
                 io.to(recipientSocketId).emit('newPrivateMessage', fullMsg);
@@ -261,9 +286,13 @@ io.on('connection', (socket) => {
             console.error("Error handling likePost:", err);
         }
     });
+
+    // Note: The comment real-time update is handled by the `io.emit('commentUpdate', ...)`
+    // inside the `app.post('/api/comment', ...)` route, so no new `socket.on` is needed here.
 });
+
 
 // --- Server Start ---
 server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });

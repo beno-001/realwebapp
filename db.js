@@ -40,19 +40,19 @@ const query = async (sql, params) => {
     }
 };
 
-// --- USER MANAGEMENT FUNCTIONS ---
+// --- USER MANAGEMENT FUNCTIONS (Updated for Profile Pic) ---
 
 const findUserByEmail = async (email) => {
-    // FIX: Selecting 'user_id' instead of the non-existent 'id'
-    const rows = await query('SELECT user_id, password_hash, username FROM users WHERE email = ?', [email]);
+    // UPDATED: Select 'profile_pic_url' to be used in the client
+    const rows = await query('SELECT user_id, password_hash, username, profile_pic_url FROM users WHERE email = ?', [email]);
     return rows[0]; // Returns the first user or undefined
 };
 
 const createUser = async (userId, email, passwordHash, username) => {
-    // FIX: Explicitly inserting the pre-generated 'user_id' UUID
+    // UPDATED: Include 'profile_pic_url' with a NULL default value
     const result = await query(
-        'INSERT INTO users (user_id, email, password_hash, username) VALUES (?, ?, ?, ?)',
-        [userId, email, passwordHash, username]
+        'INSERT INTO users (user_id, email, password_hash, username, profile_pic_url) VALUES (?, ?, ?, ?, ?)',
+        [userId, email, passwordHash, username, null] // null or a default image URL
     );
     return result.affectedRows > 0;
 };
@@ -69,17 +69,16 @@ const createPost = async (postId, userId, username, content, mediaUrl) => {
 };
 
 const getAllPosts = async () => {
-    // FIX: Joining on u.user_id and calculating likesCount and commentsCount
+    // FIX: Joining on u.user_id and calculating likesCount via LEFT JOIN on 'likes' table
+    // NOTE: If you want the post author's profile pic, you'd add u.profile_pic_url here.
     const querySQL = `
         SELECT
             p.*,
             u.username,
-            COUNT(DISTINCT l.user_id) AS likesCount,
-            COUNT(DISTINCT c.id) AS commentsCount -- NEW: Count comments
+            COUNT(l.user_id) AS likesCount
         FROM posts p
         JOIN users u ON p.user_id = u.user_id
         LEFT JOIN likes l ON p.id = l.post_id
-        LEFT JOIN comments c ON p.id = c.post_id -- NEW: Join comments table
         GROUP BY p.id, p.user_id, p.created_at, p.content, p.media_url, u.username
         ORDER BY p.created_at DESC
         LIMIT 20
@@ -94,39 +93,41 @@ const getLike = async (postId, userId) => {
 };
 
 const addLike = async (postId, userId) => {
-    const result = await query('INSERT INTO likes (post_id, user_id) VALUES (?, ?)', [postId, userId]);
-    return result.affectedRows > 0;
+    await query('INSERT INTO likes (post_id, user_id) VALUES (?, ?)', [postId, userId]);
 };
 
 const removeLike = async (postId, userId) => {
-    const result = await query('DELETE FROM likes WHERE post_id = ? AND user_id = ?', [postId, userId]);
-    return result.affectedRows > 0;
+    await query('DELETE FROM likes WHERE post_id = ? AND user_id = ?', [postId, userId]);
 };
 
 const getLikeCount = async (postId) => {
-    const rows = await query('SELECT COUNT(*) AS count FROM likes WHERE post_id = ?', [postId]);
-    return rows[0] ? rows[0].count : 0;
+    const rows = await query('SELECT COUNT(*) as newCount FROM likes WHERE post_id = ?', [postId]);
+    return rows[0].newCount;
 };
 
-// COMMENTS (NEW FUNCTIONS)
-const createComment = async (commentId, postId, userId, username, content) => {
+
+// --- COMMENT MANAGEMENT FUNCTIONS (NEW) ---
+
+const addComment = async (id, postId, userId, username, content) => {
     const result = await query(
         'INSERT INTO comments (id, post_id, user_id, username, content) VALUES (?, ?, ?, ?, ?)',
-        [commentId, postId, userId, username, content]
+        [id, postId, userId, username, content]
     );
     return result.affectedRows > 0;
 };
 
-const getCommentsForPost = async (postId) => {
+const getCommentsByPostId = async (postId) => {
     const sql = `
         SELECT
             c.id,
-            c.post_id,
-            c.user_id,
+            c.post_id AS postId,
+            c.user_id AS userId,
             c.username,
             c.content,
-            c.created_at AS timestamp
+            c.created_at,
+            u.profile_pic_url -- Include profile pic for comments
         FROM comments c
+        JOIN users u ON c.user_id = u.user_id
         WHERE c.post_id = ?
         ORDER BY c.created_at ASC
     `;
@@ -134,31 +135,41 @@ const getCommentsForPost = async (postId) => {
 };
 
 const getCommentCount = async (postId) => {
-    const rows = await query('SELECT COUNT(*) AS count FROM comments WHERE post_id = ?', [postId]);
+    const rows = await query('SELECT COUNT(id) AS count FROM comments WHERE post_id = ?', [postId]);
     return rows[0] ? rows[0].count : 0;
 };
 
-// --- REAL-TIME USER STATUS MANAGEMENT ---
 
-const userIsOnline = async (userId, socketId, username) => {
-    // Check if user is already in online_users to prevent duplicate entries on reconnect
-    const exists = await query('SELECT 1 FROM online_users WHERE userId = ?', [userId]);
-
-    if (exists.length > 0) {
-        // Update socketId if user already exists (handles reconnects)
-        await query('UPDATE online_users SET socketId = ? WHERE userId = ?', [socketId, userId]);
-    } else {
-        // Insert new user
-        await query('INSERT INTO online_users (userId, socketId, username) VALUES (?, ?, ?)', [userId, socketId, username]);
-    }
+// ONLINE USERS (Updated for Profile Pic)
+const setOnlineStatus = async (userId, username, socketId) => {
+    const sql = `
+        INSERT INTO online_users (userId, username, socketId)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE socketId = ?
+    `;
+    await query(sql, [userId, username, socketId, socketId]);
 };
 
-const userIsOffline = async (socketId) => {
+const removeOnlineStatusBySocketId = async (socketId) => {
     await query('DELETE FROM online_users WHERE socketId = ?', [socketId]);
 };
 
+const removeOnlineStatusByUserId = async (userId) => {
+    await query('DELETE FROM online_users WHERE userId = ?', [userId]);
+};
+
 const getOnlineUsers = async () => {
-    return await query('SELECT userId, username, socketId FROM online_users');
+    // UPDATED: Join with 'users' table to fetch the 'profile_pic_url'
+    const sql = `
+        SELECT
+            ou.userId,
+            ou.username,
+            ou.socketId,
+            u.profile_pic_url
+        FROM online_users ou
+        JOIN users u ON ou.userId = u.user_id
+    `;
+    return await query(sql);
 };
 
 // PRIVATE MESSAGES
@@ -201,15 +212,15 @@ module.exports = {
     addLike,
     removeLike,
     getLikeCount,
-    // NEW EXPORTS
-    createComment,
-    getCommentsForPost,
-    getCommentCount,
-    // REAL-TIME & CHAT
-    userIsOnline,
-    userIsOffline,
+    addComment, // NEW
+    getCommentsByPostId, // NEW
+    getCommentCount, // NEW
+    setOnlineStatus,
+    removeOnlineStatusBySocketId,
+    removeOnlineStatusByUserId,
     getOnlineUsers,
     savePrivateMessage,
     getChatHistory,
-    getRecipientSocketId
+    getRecipientSocketId,
+    query
 };

@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SupaGram</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        /* --- Default (Light) Theme Variables --- */
+        :root {
+            --primary-color: #ff385c;
+            --secondary-color: #2c3e50;
+            --background-color: #f4f7f6;
+            --card-background: #ffffff;
+            --text-color: #2c3e50;
+            --input-background: #ffffff;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            /* UPDATED CHAT VARIABLES for modern UI */
+            --chat-bubble-sent: var(--primary-color);
+            --chat-bubble-received: #e0e0e0;
+            --chat-text-sent: #ffffff;
+            --chat-text-received: var(--text-color);
+        }
+
+        /* --- Dark Theme Variables (Activated via .dark-mode class on body) --- */
+        .dark-mode {
+            --secondary-color: #ecf0f1;
+            --background-color: #1f2a37;
+            --card-background: #2c3e50;
+            --text-color: #ecf0f1;
+            --input-background: #34495e;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            /* UPDATED DARK CHAT VARIABLES */
+            --chat-bubble-sent: #007bff;
+            --chat-bubble-received: #34495e;
+            --chat-text-sent: #ffffff;
+            --chat-text-received: var(--text-color);
+        }
+
+        /* Apply dark mode to body and critical elements */
+        .dark-mode body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+        .dark-mode header,
+        .dark-mode .upload-box,
+        .dark-mode .post,
+        .dark-mode #online-users-sidebar,
+        .dark-mode #chat-main,
+        .dark-mode .modal-content {
+            background-color: var(--card-background);
+            color: var(--text-color);
+            box-shadow: var(--shadow);
+        }
+        .dark-mode input[type="text"],
+        .dark-mode input[type="email"],
+        .dark-mode input[type="password"],
+        .dark-mode input[type="file"],
+        .dark-mode #chat-input,
+        .dark-mode .comment-input-row input {
+            background-color: var(--input-background);
+            color: var(--text-color);
+            border-color: #4a637a;
+        }
+        .dark-mode #chat-window {
+            background: #1a242f; /* Darker message area */
+            border-color: #4a637a;
+        }
+        /* Message bubble styles updated to use the new text variables */
+        .dark-mode .message.received {
+            background-color: var(--chat-bubble-received);
+            color: var(--chat-text-received);
+        }
+        .dark-mode .user-item:hover {
+            background-color: #34495e;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        header {
+            background-color: var(--card-background);
+            box-shadow: var(--shadow);
+            padding: 15px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .logo {
+            color: var(--primary-color);
+            font-size: 1.8em;
+            font-weight: 700;
+        }
+        /* General Button Styling */
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        button:hover {
+            background-color: #e6004c;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+
+        /* Styling for Icon Buttons in the Header Navigation */
+        header nav {
+            display: flex;
+            gap: 5px;
+        }
+
+        header nav button {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            font-size: 1.4em;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            margin-left: 0;
+        }
+
+        header #logout-btn {
+             background: #ccc !important;
+             color: var(--secondary-color) !important;
+        }
+
+        /* --- Theme Selector Styling --- */
+        .theme-option {
+            border: 1px solid #ddd !important;
+            transition: all 0.2s;
+            font-size: 0.9em !important;
+        }
+        .theme-option.active {
+            border: 3px solid var(--primary-color) !important;
+            font-weight: 700 !important;
+            padding: 2px 17px !important;
+        }
+
+
+        /* --- Main Content Layout --- */
+        #main-content {
+            flex-grow: 1;
+            max-width: 1200px;
+            width: 100%;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        /* -------------------------------------- */
+        /* --- MODERNIZED FEED/POST STYLES --- */
+        /* -------------------------------------- */
+        .upload-box {
+            background-color: var(--card-background);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .upload-input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-grow: 1;
+        }
+
+        .upload-box .user-avatar {
+            width: 40px;
+            height: 40px;
+            border: none;
+        }
+
+        .upload-box input[type="text"] {
+            flex-grow: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 20px; /* More pill-shaped input */
+            transition: border-color 0.2s;
+        }
+        .upload-box input[type="text"]:focus {
+             border-color: var(--primary-color);
+        }
+
+        .upload-icon-btn {
+            width: 40px;
+            height: 40px;
+            background-color: var(--primary-color) !important;
+            color: white !important;
+            border-radius: 50% !important;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 1.2em;
+            padding: 0 !important;
+        }
+        .upload-icon-btn:hover {
+            background-color: #e6004c !important;
+        }
+
+        .upload-action-row {
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             padding-top: 10px;
+             border-top: 1px solid #eee;
+        }
+        .dark-mode .upload-action-row {
+             border-top: 1px solid #4a637a;
+        }
+
+        .post {
+            background-color: var(--card-background);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+            border: 1px solid #ddd; /* Subtle border for definition */
+        }
+        .dark-mode .post {
+             border: 1px solid #34495e;
+        }
+
+        .post-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+        .dark-mode .post-header {
+             color: var(--text-color);
+        }
+
+        /* New: Profile Picture Styling */
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 10px;
+            border: 2px solid var(--primary-color);
+            flex-shrink: 0;
+            transition: border-color 0.3s;
+        }
+
+        .post .actions {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 1.1em;
+        }
+        .post .like-btn {
+            background: none;
+            color: var(--primary-color);
+            padding: 5px 10px;
+            border: 1px solid var(--primary-color);
+            font-weight: 400;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .post .like-btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        /* New: Comments Section Styles */
+        .post .comments-section {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+        .dark-mode .post .comments-section {
+            border-top: 1px solid #4a637a;
+        }
+        .comment-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+        .comment-text {
+            background: #f0f0f0;
+            padding: 6px 10px;
+            border-radius: 12px;
+            max-width: fit-content;
+            text-align: left;
+        }
+        .dark-mode .comment-text {
+            background: #34495e;
+        }
+        .comment-input-row {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+            align-items: center;
+        }
+        .comment-input-row input {
+            flex-grow: 1;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background-color: var(--input-background);
+            color: var(--text-color);
+        }
+
+        /* --- Modal/Auth/Settings Styles (Unchanged) --- */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background: var(--card-background);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .modal-content input {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+        .modal-content button {
+            margin-top: 15px;
+            width: 100%;
+            margin-left: 0;
+        }
+        /* -------------------------------------- */
+        /* --- MODERNIZED CHAT STYLES --- */
+        /* -------------------------------------- */
+        #private-chat {
+            display: flex;
+            gap: 20px;
+            min-height: calc(100vh - 150px);
+            position: relative;
+        }
+        /* Sidebar Styling - Desktop Default */
+        #online-users-sidebar {
+            width: 280px; /* Slightly wider sidebar */
+            background-color: var(--card-background);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow-y: auto;
+            flex-shrink: 0;
+            position: relative;
+            left: 0;
+            transition: left 0.3s ease-in-out;
+        }
+        /* Main Chat Area */
+        #chat-main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--card-background);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+        /* Chat Header Layout */
+        #chat-main .chat-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .dark-mode #chat-main .chat-header {
+             border-bottom: 1px solid #4a637a;
+        }
+
+        /* New: Close/Back Button for Mobile Chat View */
+        .close-chat-btn {
+            background: none;
+            color: var(--secondary-color);
+            font-size: 24px;
+            padding: 0;
+            margin-right: 10px;
+            border: none;
+            cursor: pointer;
+            line-height: 1;
+            display: none; /* Default hidden on desktop */
+        }
+        .dark-mode .close-chat-btn {
+            color: var(--text-color);
+        }
+
+        /* Hamburger Button Styling */
+        .hamburger-btn {
+            background: none;
+            color: var(--primary-color);
+            font-size: 24px;
+            padding: 0;
+            margin-right: 10px;
+            border: none;
+            cursor: pointer;
+            line-height: 1;
+            display: none; /* Default hidden on desktop */
+        }
+
+        /* Chat Window Styling */
+        #chat-window {
+            flex-grow: 1;
+            /* border: 1px solid #ddd; - Removed border for cleaner look */
+            background: var(--background-color); /* Lighter background for the message area */
+            overflow-y: auto;
+            padding: 15px;
+            border-radius: 8px;
+            min-height: 200px;
+            max-height: 70vh;
+        }
+        .dark-mode #chat-window {
+            background: #1a242f; /* Darker message area */
+        }
+        /* Fixed Input Area */
+        .chat-input-wrapper {
+            padding-top: 15px;
+            position: relative;
+        }
+        /* Chat Input Row including icons */
+        #private-chat .chat-input-row {
+            display: flex;
+            gap: 8px; /* Slightly tighter spacing */
+            align-items: center;
+        }
+        /* New styling for the secondary icon buttons (Emoji, File) */
+        .chat-icon-btn {
+            width: 38px !important;
+            height: 38px !important;
+            font-size: 1.1em !important;
+            background: #ccc !important;
+            color: var(--secondary-color) !important;
+            border-radius: 50% !important;
+            padding: 0;
+            flex-shrink: 0;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .chat-icon-btn:hover {
+             background: #bbb !important;
+        }
+        /* New styling for the primary SEND icon button */
+        .send-icon-btn {
+            width: 45px !important; /* Slightly larger send button */
+            height: 45px !important;
+            background-color: var(--primary-color) !important;
+            color: white !important;
+            border-radius: 50% !important;
+            padding: 0;
+            flex-shrink: 0;
+            font-size: 1.2em;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        .send-icon-btn:hover {
+            background-color: #e6004c !important;
+        }
+        #private-chat .chat-input-row input {
+            flex-grow: 1;
+            padding: 10px 15px;
+            height: 45px;
+            border: 1px solid #ddd;
+            border-radius: 25px; /* Pill-shaped input */
+            background-color: var(--input-background);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+        /* --- Emoji Picker Styling --- */
+        #emoji-picker-popover {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            background: var(--card-background);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 10px;
+            max-height: 200px;
+            width: 100%;
+            max-width: 250px;
+            overflow-y: auto;
+            z-index: 50;
+            display: none;
+            border: 1px solid #ddd;
+        }
+        .dark-mode #emoji-picker-popover {
+             border: 1px solid #4a637a;
+        }
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 5px;
+        }
+        .emoji-item {
+            font-size: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 6px;
+            transition: background-color 0.1s;
+        }
+        .emoji-item:hover {
+            background-color: #eee;
+        }
+        .dark-mode .emoji-item:hover {
+             background-color: #34495e;
+        }
+
+        /* Mobile Adjustments (<= 768px) */
+        @media (max-width: 768px) {
+            #main-content {
+                 margin: 0;
+                 padding: 0;
+            }
+            #private-chat {
+                flex-direction: column;
+                gap: 0;
+                min-height: 100vh;
+            }
+            /* Sidebar must now use viewport height and be fixed to overlay the entire screen */
+            #online-users-sidebar {
+                position: fixed;
+                top: 0;
+                left: -100%;
+                width: 80%;
+                height: 100vh;
+                padding-top: 60px;
+                z-index: 100;
+                border-radius: 0 12px 12px 0;
+            }
+            /* Class to show the sidebar */
+            #online-users-sidebar.open {
+                left: 0;
+            }
+            /* Show Hamburger on mobile when sidebar is closed */
+            .hamburger-btn {
+                display: inline-block !important;
+            }
+            /* Show Close button on mobile when chat is active */
+            .close-chat-btn {
+                display: none; /* Hide by default */
+            }
+            #chat-main.active-chat .close-chat-btn {
+                display: inline-block;
+            }
+            /* Hide hamburger when a chat is active */
+            #chat-main.active-chat .hamburger-btn {
+                display: none !important;
+            }
+            /* Make chat-main take full height/width */
+            #chat-main {
+                min-height: calc(100vh - 60px);
+                border-radius: 0;
+                padding: 10px;
+                margin-top: 60px;
+            }
+            #chat-window {
+                max-height: none;
+                min-height: 50vh;
+            }
+        }
+        /* Desktop Adjustments (> 768px) */
+        @media (min-width: 769px) {
+            /* Hide Mobile-specific buttons on desktop */
+            .hamburger-btn, .close-chat-btn {
+                display: none !important;
+            }
+        }
+        /* User List and Status (Improved) */
+        .user-item {
+            padding: 12px;
+            margin-bottom: 5px;
+            border-radius: 8px; /* Slightly larger radius */
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+        .user-item:hover, .user-item.active {
+            background-color: #f0f0f0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); /* Subtle lift on hover/active */
+        }
+        .dark-mode .user-item:hover, .dark-mode .user-item.active {
+            background-color: #34495e;
+        }
+        .user-item .info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .user-item .info img {
+             border: 2px solid #5cb85c; /* Status visual for online users */
+        }
+        .user-item.offline .info img {
+             border: 2px solid transparent;
+             opacity: 0.7;
+        }
+        .notification-badge {
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 0.75em;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 12px;
+            margin-left: auto;
+            line-height: 1;
+            min-width: 20px;
+            text-align: center;
+        }
+        .user-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-left: -15px; /* Overlay on avatar for modern look (can be complex, let's stick to inline) */
+        }
+        .status-online {
+            background-color: #2ecc71; /* Green */
+        }
+        .status-offline {
+            background-color: #e74c3c; /* Red */
+        }
+        /* Message Bubbles (UPDATED) */
+        .message {
+            margin-bottom: 8px;
+            padding: 10px 14px;
+            border-radius: 18px; /* More rounded corners */
+            max-width: 75%; /* Slightly wider max-width */
+            word-wrap: break-word;
+            font-size: 1em;
+            line-height: 1.4;
+        }
+        .message.sent {
+            background-color: var(--chat-bubble-sent);
+            color: var(--chat-text-sent); /* Use new color variable */
+            margin-left: auto;
+            text-align: left; /* Text content starts left inside the bubble */
+            border-bottom-right-radius: 5px; /* Square bottom-right corner for modern look */
+        }
+        .message.received {
+            background-color: var(--chat-bubble-received);
+            color: var(--chat-text-received); /* Use new color variable */
+            margin-right: auto;
+            text-align: left;
+            border-bottom-left-radius: 5px; /* Square bottom-left corner for modern look */
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+
+        <div id="auth-modal" class="modal">
+            <div class="modal-content">
+                <div id="auth-view-container">
+
+                    <div id="login-signup-view" style="display: block;">
+                        <h2 id="auth-title">Welcome Back!</h2>
+                        <input type="text" id="username" placeholder="Username (Signup only)" style="display: none;">
+                        <input type="email" id="email" placeholder="Email">
+                        <input type="password" id="password" placeholder="Password">
+                        <input type="text" id="profile-pic-url" placeholder="Profile Picture URL (Optional)" style="display: none;">
+                        <button id="auth-primary-btn" data-mode="login">Login</button>
+                        <button id="auth-toggle-btn" class="alt-btn" style="background: #ccc; color: var(--secondary-color);">Need an account? Sign Up</button>
+                        <a href="#" id="forgot-password-link" style="margin-top: 10px; display: block; font-size: 0.9em; color: var(--primary-color);">Forgot Password?</a>
+                    </div>
+
+                    <div id="forgot-password-view" style="display: none;">
+                        <h2>Forgot Password</h2>
+                        <p style="margin-bottom: 20px; font-size: 0.9em;">Enter your email and we'll send you a **RESET LINK** in the console. (Production environments would send an email).</p>
+                        <input type="email" id="forgot-email" placeholder="Your Email">
+                        <button id="forgot-submit-btn">Send Reset Link</button>
+                        <button id="forgot-back-btn" class="alt-btn" style="background: #ccc; color: var(--secondary-color); margin-top: 10px;">Back to Login</button>
+                    </div>
+
+                    <div id="reset-password-view" style="display: none;">
+                        <h2>Reset Password</h2>
+                        <p id="reset-info-text" style="margin-bottom: 20px; font-size: 0.9em;">Please enter and confirm your new password.</p>
+                        <input type="password" id="new-password" placeholder="New Password (min 8 chars)">
+                        <input type="password" id="confirm-password" placeholder="Confirm New Password">
+                        <button id="reset-submit-btn">Set New Password</button>
+                    </div>
+
+                    <p id="auth-message" style="color: var(--primary-color); margin-top: 15px;"></p>
+                </div>
+            </div>
+        </div>
+
+        <div id="settings-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>Settings</h2>
+                <div style="text-align: left; margin-top: 20px;">
+                    <h4 style="margin-bottom: 10px; color: var(--text-color);">Appearance (Theme)</h4>
+                    <div id="theme-selectors" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button id="theme-light-btn" data-theme="light" class="theme-option" style="background: #f0f0f0; color: #333; width: 80px; padding: 5px;">Light</button>
+                        <button id="theme-dark-btn" data-theme="dark" class="theme-option" style="background: #333; color: white; width: 80px; padding: 5px;">Dark</button>
+                        <button id="theme-system-btn" data-theme="system" class="theme-option" style="background: #999; color: white; width: 80px; padding: 5px;">System</button>
+                    </div>
+                    <h4 style="margin-bottom: 10px; color: var(--text-color);">Profile Picture</h4>
+                    <p id="current-profile-pic-info" style="font-size: 0.8em; color: #888; margin-top: 5px;">Profile picture management is for demonstration only.</p>
+                </div>
+                <button id="close-settings-btn" style="background: var(--secondary-color); margin-top: 20px;">Close</button>
+            </div>
+        </div>
+
+        <header>
+            <h1 class="logo">SupaGram</h1>
+            <nav>
+                <button id="for-you-btn" title="Feed"><i class="material-icons">home</i></button>
+                <button id="chat-btn" title="Chat">💬</button>
+                <button id="settings-btn" title="Settings">⚙️</button>
+                <button id="logout-btn" title="Logout">🚪</button>
+            </nav>
+        </header>
+
+        <main id="main-content">
+            <section id="for-you-feed" style="display: none;">
+                <div class="upload-box">
+                    <div class="upload-input-row">
+                        <img id="current-user-avatar" src="/default-user.png" alt="Profile" class="user-avatar" style="border: none;">
+                        <input type="text" id="post-content" placeholder="What's on your mind?">
+                    </div>
+
+                    <input type="text" id="media-url" placeholder="Paste image/video URL (Optional - less prominent)">
+
+                    <div class="upload-action-row">
+                        <button id="upload-icon-btn" class="upload-icon-btn" title="Upload Media">
+                            <i class="material-icons" style="font-size: 1.2em;">image</i>
+                        </button>
+                        <input type="file" id="media-file-upload" style="display: none;" accept="image/*,video/*">
+                        <button id="post-btn">Share Post</button>
+                    </div>
+                </div>
+
+                <div id="posts-container">
+                </div>
+            </section>
+
+            <section id="private-chat" style="display: none;">
+                <div id="online-users-sidebar">
+                    <h3 style="margin-top: 0; padding-bottom: 10px; border-bottom: 1px solid #eee;">Online Users</h3>
+                    <div id="user-list">
+                        </div>
+                </div>
+
+                <div id="chat-main" style="display: none;">
+                    <div class="chat-header">
+                        <button class="close-chat-btn" title="Back to Users">←</button>
+                        <h3 id="recipient-name" style="margin: 0;">Select a User</h3>
+                    </div>
+                    <div id="chat-window">
+                        <div style="text-align: center; color: #888; padding: 20px;">Select a user to start a conversation.</div>
+                    </div>
+                    <div class="chat-input-wrapper">
+                        <div id="emoji-picker-popover">
+                            <div class="emoji-grid">
+                            </div>
+                        </div>
+                        <div class="chat-input-row">
+                            <button id="emoji-btn" class="chat-icon-btn" title="Emoji">😊</button>
+                            <input type="file" id="chat-file-upload" style="display: none;">
+                            <button id="file-btn" class="chat-icon-btn" title="Attach File">📎</button>
+                            <input type="text" id="chat-input" placeholder="Type a message..." disabled>
+                            <button id="send-btn" class="send-icon-btn" disabled>
+                                <i class="material-icons">send</i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script>
+        // --- GLOBAL STATE ---
+        const socket = io();
+        const currentUser = { token: null, id: null, username: null, profilePicUrl: null, };
+        let activeRecipient = { id: null, username: null };
+        let chatMessages = {}; // Stores chat history: {userId: [{...}, {...}], ...}
+        let unreadCounts = {}; // Stores unread message counts: {userId: 5, ...}
+        let onlineUsers = []; // Stores the current list of online users
+
+        // --- HELPER FUNCTIONS ---
+        // Function to switch between auth views (NEW)
+        const showAuthView = (viewName, token = null) => {
+            // Hide all views first
+            document.getElementById('login-signup-view').style.display = 'none';
+            document.getElementById('forgot-password-view').style.display = 'none';
+            document.getElementById('reset-password-view').style.display = 'none';
+            document.getElementById('auth-message').textContent = ''; // Clear old messages
+            document.getElementById('auth-message').style.color = 'var(--primary-color)'; // Reset color
+
+            if (viewName === 'login' || viewName === 'signup') {
+                document.getElementById('login-signup-view').style.display = 'block';
+                const isLogin = viewName === 'login';
+                document.getElementById('auth-title').textContent = isLogin ? 'Welcome Back!' : 'Create Account';
+                document.getElementById('username').style.display = isLogin ? 'none' : 'block';
+                document.getElementById('profile-pic-url').style.display = isLogin ? 'none' : 'block';
+                document.getElementById('auth-primary-btn').textContent = isLogin ? 'Login' : 'Sign Up';
+                document.getElementById('auth-primary-btn').dataset.mode = viewName;
+                document.getElementById('auth-toggle-btn').textContent = isLogin ? 'Need an account? Sign Up' : 'Have an account? Login';
+                document.getElementById('forgot-password-link').style.display = 'block';
+            } else if (viewName === 'forgot') {
+                document.getElementById('forgot-password-view').style.display = 'block';
+                document.getElementById('forgot-email').value = '';
+            } else if (viewName === 'reset' && token) {
+                document.getElementById('reset-password-view').style.display = 'block';
+                document.getElementById('reset-submit-btn').dataset.token = token; // Store token on the button
+                document.getElementById('reset-info-text').textContent = "Please enter and confirm your new password.";
+                document.getElementById('new-password').value = '';
+                document.getElementById('confirm-password').value = '';
+            } else {
+                // Fallback
+                showAuthView('login');
+            }
+        };
+
+        // --- AUTH HANDLERS (UPDATED) ---
+        const handleAuth = async (e) => {
+            const mode = e.currentTarget.dataset.mode;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const username = document.getElementById('username').value;
+            const profilePicUrl = document.getElementById('profile-pic-url').value;
+            const messageEl = document.getElementById('auth-message');
+            messageEl.textContent = ''; // Clear previous messages
+
+            if (!email || !password || (mode === 'signup' && !username)) {
+                messageEl.textContent = 'Please fill in all required fields.';
+                messageEl.style.color = 'red';
+                return;
+            }
+
+            const endpoint = `/api/${mode}`;
+            const body = mode === 'login' ? { email, password } : { email, password, username, profilePicUrl };
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    messageEl.textContent = data.message;
+                    messageEl.style.color = 'green';
+
+                    // Set Global State and Local Storage
+                    localStorage.setItem('userToken', data.token);
+                    localStorage.setItem('currentUserData', JSON.stringify({
+                        id: data.userId,
+                        username: data.username,
+                        profilePicUrl: data.profilePicUrl // Store fetched profile pic
+                    }));
+                    currentUser.token = data.token;
+                    currentUser.id = data.userId;
+                    currentUser.username = data.username;
+                    currentUser.profilePicUrl = data.profilePicUrl || '/default-user.png';
+                    document.getElementById('current-user-avatar').src = currentUser.profilePicUrl; // Update feed avatar
+
+                    // Log in the user after a short delay
+                    setTimeout(() => {
+                        document.getElementById('auth-modal').style.display = 'none';
+                        document.getElementById('for-you-feed').style.display = 'block';
+                        document.getElementById('chat-btn').style.display = 'inline-flex';
+
+                        socket.emit('userOnline', { userId: currentUser.id, username: currentUser.username });
+                        loadFeed();
+                    }, 500);
+                } else {
+                    messageEl.textContent = data.message || `An unknown error occurred during ${mode}.`;
+                    messageEl.style.color = 'red';
+                }
+            } catch (error) {
+                console.error(`${mode} error:`, error);
+                messageEl.textContent = 'Network error. Please try again.';
+                messageEl.style.color = 'red';
+            }
+        };
+
+        // Forgot Password Handler (NEW)
+        const handleForgotPassword = async () => {
+            const email = document.getElementById('forgot-email').value;
+            const messageEl = document.getElementById('auth-message');
+            if (!email) {
+                messageEl.textContent = 'Please enter your email.';
+                messageEl.style.color = 'red';
+                return;
+            }
+            messageEl.textContent = 'Sending reset link...';
+            messageEl.style.color = 'var(--secondary-color)';
+            try {
+                const response = await fetch('/api/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await response.json();
+                messageEl.textContent = data.message;
+                messageEl.style.color = 'green';
+            } catch (error) {
+                console.error('Forgot Password error:', error);
+                messageEl.textContent = 'Network error. Please try again.';
+                messageEl.style.color = 'red';
+            }
+        };
+
+        // Reset Password Handler (NEW)
+        const handleResetPassword = async (e) => {
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const token = e.currentTarget.dataset.token;
+            const messageEl = document.getElementById('auth-message');
+            messageEl.textContent = '';
+            if (!token) {
+                messageEl.textContent = 'Reset token is missing. Please use the link from your email.';
+                messageEl.style.color = 'red';
+                return;
+            }
+            if (newPassword.length < 8) {
+                messageEl.textContent = 'New password must be at least 8 characters long.';
+                messageEl.style.color = 'red';
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                messageEl.textContent = 'Passwords do not match.';
+                messageEl.style.color = 'red';
+                return;
+            }
+            messageEl.textContent = 'Updating password...';
+            messageEl.style.color = 'var(--secondary-color)';
+            try {
+                const response = await fetch('/api/reset-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, newPassword })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    messageEl.textContent = data.message;
+                    messageEl.style.color = 'green';
+                    setTimeout(() => {
+                        showAuthView('login');
+                        messageEl.textContent = '';
+                    }, 3000);
+                } else {
+                    messageEl.textContent = data.message || 'Reset failed. The token may be invalid or expired.';
+                    messageEl.style.color = 'red';
+                }
+            } catch (error) {
+                console.error('Reset Password error:', error);
+                messageEl.textContent = 'Network error. Please try again.';
+                messageEl.style.color = 'red';
+            }
+        };
+
+        // --- FEED/POST HANDLERS (Omitted for brevity, assumed to be complete in original file) ---
+        const loadFeed = () => { /* ... */ };
+        const createPostElement = (post) => { /* ... */ };
+        const handleLikeUpdate = (data) => { /* ... */ };
+        const handleNewComment = (comment) => { /* ... */ };
+        const createPost = () => { /* ... */ }; // Need to include this placeholder since it's used
+
+        // --- CHAT UI FUNCTIONS (FULLY IMPLEMENTED) ---
+
+        /**
+         * Creates and appends a single message bubble to the chat window.
+         * @param {Object} msg - The message object { sender_id, message_text, timestamp }
+         */
+        const displayMessage = (msg) => {
+            const chatWindow = document.getElementById('chat-window');
+            const isSent = msg.sender_id === currentUser.id;
+            const isFile = (msg.message_text || msg.message).startsWith('[FILE ATTACHED:');
+
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${isSent ? 'sent' : 'received'}`;
+
+            // Fallback to msg.message if message_text is not present (for real-time echo)
+            let content = msg.message_text || msg.message;
+
+            // Format the timestamp (simple hour:minute)
+            const date = new Date(msg.timestamp);
+            const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+            if (isFile) {
+                 // Enhance file placeholder appearance
+                content = `<span style="font-weight: bold; text-decoration: underline;">${content}</span>`;
+            }
+
+            messageEl.innerHTML = `
+                ${content}
+                <span style="display: block; font-size: 0.7em; opacity: 0.7; margin-top: 4px; color: inherit; /* Inherit color from bubble */">${time}</span>
+            `;
+
+            chatWindow.appendChild(messageEl);
+            chatWindow.scrollTop = chatWindow.scrollHeight; // Auto-scroll to bottom
+        };
+
+
+        /**
+         * Clears the window and displays the chat history.
+         * @param {Array} history - Array of message objects.
+         */
+        const displayChatHistory = (history) => {
+            const chatWindow = document.getElementById('chat-window');
+            chatWindow.innerHTML = ''; // Clear previous messages
+
+            if (history.length === 0) {
+                chatWindow.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Start a new conversation!</div>';
+                return;
+            }
+
+            history.forEach(displayMessage);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        };
+
+        /**
+         * Toggles the chat UI to focus on the conversation panel.
+         * @param {Object} recipient - The user object of the chat partner.
+         */
+        const startChat = (recipient) => {
+            // 1. Update Global State
+            activeRecipient.id = recipient.userId;
+            activeRecipient.username = recipient.username;
+
+            // 2. Update UI
+            document.getElementById('recipient-name').textContent = recipient.username;
+            document.getElementById('chat-main').style.display = 'flex'; // Show the main chat panel
+            document.getElementById('chat-input').disabled = false;
+            document.getElementById('send-btn').disabled = false;
+            document.getElementById('chat-input').focus();
+
+            // Clear unread count for this user
+            unreadCounts[recipient.userId] = 0;
+
+            // Update active class on user list
+            document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
+            const activeEl = document.querySelector(`.user-item[data-user-id="${recipient.userId}"]`);
+            if (activeEl) activeEl.classList.add('active');
+
+            // Mobile responsiveness: Hide sidebar, show chat-main as active
+            document.getElementById('online-users-sidebar').classList.remove('open');
+            document.getElementById('chat-main').classList.add('active-chat');
+
+            // 3. Load Messages
+            if (chatMessages[recipient.userId]) {
+                displayChatHistory(chatMessages[recipient.userId]);
+            } else {
+                // Request history from server if not cached
+                socket.emit('getChatHistory', { senderId: currentUser.id, recipientId: recipient.userId });
+                document.getElementById('chat-window').innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Loading history...</div>';
+            }
+
+            // Re-load users to update badges after clearing the unread count
+            loadUsers(onlineUsers);
+        };
+
+        /**
+         * Dynamically loads and displays the list of online users in the sidebar.
+         * @param {Array} users - List of online user objects.
+         */
+        const loadUsers = (users) => {
+            onlineUsers = users; // Cache the full list
+            const userListEl = document.getElementById('user-list');
+            userListEl.innerHTML = ''; // Clear current list
+
+            const usersToShow = users.filter(u => u.userId !== currentUser.id);
+
+            if (usersToShow.length === 0) {
+                userListEl.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">No other users online.</div>';
+                return;
+            }
+
+            usersToShow.forEach(user => {
+                const unreadCount = unreadCounts[user.userId] || 0;
+
+                const userItem = document.createElement('div');
+                userItem.className = `user-item ${activeRecipient.id === user.userId ? 'active' : ''} ${user.isOnline ? 'online' : 'offline'}`;
+                userItem.dataset.userId = user.userId;
+                userItem.innerHTML = `
+                    <div class="info">
+                        <img src="${user.profilePicUrl || '/default-user.png'}" alt="${user.username}" class="user-avatar" style="width: 30px; height: 30px;">
+                        <span style="font-weight: 500;">${user.username}</span>
+                    </div>
+                    ${unreadCount > 0 ? `<span class="notification-badge">${unreadCount}</span>` : ''}
+                `;
+                userItem.addEventListener('click', () => startChat(user));
+                userListEl.appendChild(userItem);
+            });
+        };
+
+        /**
+         * Sends a private message via Socket.IO.
+         */
+        const sendMessage = () => {
+            const inputEl = document.getElementById('chat-input');
+            const message = inputEl.value.trim();
+
+            if (message === '' || !activeRecipient.id || !currentUser.id) {
+                return;
+            }
+
+            const msgPayload = {
+                senderId: currentUser.id,
+                recipientId: activeRecipient.id,
+                message: message,
+                timestamp: new Date().toISOString()
+            };
+
+            socket.emit('privateMessage', msgPayload);
+            inputEl.value = ''; // Clear input field
+
+            // Reset file attachment state
+            document.getElementById('chat-file-upload').value = '';
+            document.getElementById('send-btn').disabled = true;
+            document.getElementById('chat-input').disabled = false;
+        };
+
+        /**
+         * Handles incoming private messages, displays them, and updates unread counts/UI.
+         * @param {Object} data - The message payload.
+         */
+        const handlePrivateMessage = (data) => {
+            // Determine the user ID to check (sender for recipient, recipient for sender's echo)
+            const chatterId = data.sender_id === currentUser.id ? data.recipient_id : data.sender_id;
+
+            // 1. Add message to local chat history
+            if (!chatMessages[chatterId]) {
+                chatMessages[chatterId] = [];
+            }
+
+            // Ensure consistency in the stored message object
+            const messageToStore = {
+                message_id: data.message_id,
+                sender_id: data.sender_id,
+                recipient_id: data.recipient_id,
+                message_text: data.message_text || data.message,
+                timestamp: data.timestamp
+            };
+            chatMessages[chatterId].push(messageToStore);
+
+            // 2. Display the message if the chat is currently open
+            if (activeRecipient.id === chatterId) {
+                displayMessage(messageToStore);
+            } else if (data.recipient_id === currentUser.id) {
+                // 3. Update unread count if it's a message for the current user and chat is NOT open
+                if (!unreadCounts[chatterId]) {
+                    unreadCounts[chatterId] = 0;
+                }
+                unreadCounts[chatterId]++;
+                // Re-load users to update badges (without refreshing the whole list from server)
+                loadUsers(onlineUsers);
+            }
+        };
+
+
+        // --- EVENT LISTENERS AND INITIALIZATION ---
+
+        const attachChatEventListeners = () => {
+            // 1. Send Button and Input Enter Key
+            document.getElementById('send-btn').addEventListener('click', sendMessage);
+            document.getElementById('chat-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                    e.preventDefault();
+                }
+            });
+
+            // 2. Send button enable/disable logic based on input
+            document.getElementById('chat-input').addEventListener('input', (e) => {
+                document.getElementById('send-btn').disabled = e.target.value.trim() === '';
+            });
+
+            // 3. Mobile Navigation: Back/Close button (shows sidebar/hides chat)
+            document.querySelector('.close-chat-btn').addEventListener('click', () => {
+                activeRecipient = { id: null, username: null };
+                document.getElementById('chat-main').classList.remove('active-chat');
+                document.getElementById('chat-main').style.display = 'none'; // Hide the chat window entirely
+                loadUsers(onlineUsers); // Update the user list (removes active class)
+            });
+
+            // 4. Mobile Navigation: Hamburger button (shows sidebar)
+            const hamburgerBtn = document.createElement('button');
+            hamburgerBtn.className = 'hamburger-btn';
+            hamburgerBtn.title = 'Users';
+            hamburgerBtn.innerHTML = '<i class="material-icons">menu</i>'; // Using Material Icon
+            hamburgerBtn.addEventListener('click', () => {
+                document.getElementById('online-users-sidebar').classList.add('open');
+            });
+
+            // Prepend hamburger button to the chat header
+            const chatHeader = document.querySelector('#chat-main .chat-header');
+            chatHeader.prepend(hamburgerBtn);
+
+            // 5. Mobile Sidebar Close: Click outside on mobile (simplified)
+            document.getElementById('online-users-sidebar').addEventListener('click', (e) => {
+                if (window.innerWidth <= 768 && e.target.id === 'online-users-sidebar' && e.target.classList.contains('open')) {
+                     document.getElementById('online-users-sidebar').classList.remove('open');
+                }
+            });
+
+            // 6. Emoji Picker Toggle
+            const emojiGridEl = document.querySelector('#emoji-picker-popover .emoji-grid');
+            const popularEmojis = ['😀', '😂', '😍', '😭', '👍', '👎', '🎉', '🔥', '❤️', '🤔', '😊', '😭', '🙏', '💯', '🤣', '😘', '🥺', '🥳', '😎', '😩', '✅', '❌'];
+
+            popularEmojis.forEach(emoji => {
+                const item = document.createElement('span');
+                item.className = 'emoji-item';
+                item.textContent = emoji;
+                item.dataset.emoji = emoji;
+                emojiGridEl.appendChild(item);
+            });
+
+            document.getElementById('emoji-btn').addEventListener('click', () => {
+                const picker = document.getElementById('emoji-picker-popover');
+                picker.style.display = picker.style.display === 'block' ? 'none' : 'block';
+            });
+
+            // Emoji selection
+            emojiGridEl.addEventListener('click', (e) => {
+                if (e.target.classList.contains('emoji-item')) {
+                    const emoji = e.target.getAttribute('data-emoji');
+                    const input = document.getElementById('chat-input');
+                    input.value += emoji;
+                    input.focus();
+                    document.getElementById('send-btn').disabled = false;
+                    document.getElementById('emoji-picker-popover').style.display = 'none';
+                }
+            });
+
+            // Click outside closes emoji picker
+            document.addEventListener('click', (e) => {
+                const picker = document.getElementById('emoji-picker-popover');
+                const emojiBtn = document.getElementById('emoji-btn');
+
+                // Check if click target is outside both the picker and the button
+                if (picker.style.display === 'block' && !picker.contains(e.target) && !emojiBtn.contains(e.target)) {
+                    picker.style.display = 'none';
+                }
+            });
+
+            // 7. File Attachment (Placeholder)
+            document.getElementById('file-btn').addEventListener('click', () => {
+                 document.getElementById('chat-file-upload').click();
+            });
+            document.getElementById('chat-file-upload').addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    const fileName = this.files[0].name;
+                    document.getElementById('chat-input').value = `[FILE ATTACHED: ${fileName}]`;
+                    document.getElementById('send-btn').disabled = false;
+                    document.getElementById('chat-input').focus();
+                }
+            });
+        };
+
+
+        const attachEventListeners = () => {
+            // Auth Handlers
+            document.getElementById('auth-primary-btn').addEventListener('click', handleAuth);
+            document.getElementById('auth-toggle-btn').addEventListener('click', () => {
+                const isLogin = document.getElementById('auth-primary-btn').dataset.mode === 'login';
+                showAuthView(isLogin ? 'signup' : 'login');
+            });
+            document.getElementById('forgot-password-link').addEventListener('click', (e) => {
+                e.preventDefault();
+                showAuthView('forgot');
+            });
+            document.getElementById('forgot-submit-btn').addEventListener('click', handleForgotPassword);
+            document.getElementById('forgot-back-btn').addEventListener('click', () => showAuthView('login'));
+            document.getElementById('reset-submit-btn').addEventListener('click', handleResetPassword);
+
+            // Settings/Theme Handlers
+            document.getElementById('settings-btn').addEventListener('click', () => {
+                document.getElementById('settings-modal').style.display = 'flex';
+                // Highlight current theme button
+                const currentTheme = localStorage.getItem('theme') || 'system';
+                document.querySelectorAll('.theme-option').forEach(btn => btn.classList.remove('active'));
+                document.querySelector(`#theme-${currentTheme}-btn`).classList.add('active');
+            });
+            document.getElementById('close-settings-btn').addEventListener('click', () => {
+                document.getElementById('settings-modal').style.display = 'none';
+            });
+            document.getElementById('theme-selectors').addEventListener('click', (e) => {
+                if (e.target.classList.contains('theme-option')) {
+                    const theme = e.target.dataset.theme;
+                    setTheme(theme);
+                    document.querySelectorAll('.theme-option').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                }
+            });
+
+            // Navigation Handlers
+            document.getElementById('for-you-btn').addEventListener('click', () => {
+                document.getElementById('private-chat').style.display = 'none';
+                document.getElementById('for-you-feed').style.display = 'block';
+                // On mobile, if feed is shown, hide the chat sidebar
+                document.getElementById('online-users-sidebar').classList.remove('open');
+            });
+            document.getElementById('chat-btn').addEventListener('click', () => {
+                document.getElementById('for-you-feed').style.display = 'none';
+                document.getElementById('private-chat').style.display = 'flex';
+            });
+
+            // Post Handlers
+            document.getElementById('upload-icon-btn').addEventListener('click', () => {
+                 document.getElementById('media-file-upload').click();
+            });
+            document.getElementById('media-file-upload').addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    alert(`Selected file: ${this.files[0].name}. Use Post button to upload/post.`);
+                }
+            });
+            document.getElementById('post-btn').addEventListener('click', createPost);
+
+
+            // --- ATTACH CHAT LISTENERS ---
+            attachChatEventListeners();
+        };
+
+        const loadInitialAuth = () => {
+            let storedToken = localStorage.getItem('userToken');
+            let storedUserData = localStorage.getItem('currentUserData');
+
+            if (storedToken && storedUserData) {
+                try {
+                    const userData = JSON.parse(storedUserData);
+                    document.getElementById('auth-modal').style.display = 'none';
+                    document.getElementById('for-you-feed').style.display = 'block';
+                    document.getElementById('chat-btn').style.display = 'inline-flex';
+
+                    currentUser.token = storedToken;
+                    currentUser.id = userData.id;
+                    currentUser.username = userData.username;
+                    // Load saved profile pic or use default
+                    currentUser.profilePicUrl = userData.profilePicUrl || '/default-user.png';
+                    document.getElementById('current-user-avatar').src = currentUser.profilePicUrl; // Set feed avatar
+
+                    socket.emit('userOnline', { userId: currentUser.id, username: currentUser.username });
+                    loadFeed();
+                } catch (e) {
+                    console.error("Failed to parse stored user data:", e);
+                    localStorage.removeItem('userToken');
+                    localStorage.removeItem('currentUserData');
+                    document.getElementById('auth-modal').style.display = 'flex';
+                    document.getElementById('for-you-feed').style.display = 'none';
+                    document.getElementById('chat-btn').style.display = 'none';
+                }
+            } else {
+                document.getElementById('auth-modal').style.display = 'flex';
+                document.getElementById('for-you-feed').style.display = 'none';
+                document.getElementById('chat-btn').style.display = 'none';
+            }
+        };
+
+        // Theme logic (omitted for brevity, assumed functional in original file)
+        const loadInitialTheme = () => {
+             const savedTheme = localStorage.getItem('theme') || 'system';
+             setTheme(savedTheme);
+        };
+        const setTheme = (theme) => {
+            const body = document.body;
+            localStorage.setItem('theme', theme);
+
+            if (theme === 'dark') {
+                body.classList.add('dark-mode');
+            } else if (theme === 'light') {
+                body.classList.remove('dark-mode');
+            } else { // system
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (prefersDark) {
+                     body.classList.add('dark-mode');
+                } else {
+                     body.classList.remove('dark-mode');
+                }
+            }
+        };
+
+
+        // --- SOCKET.IO LISTENERS (UPDATED) ---
+        socket.on('connect', () => {
+            console.log('Connected with socket ID:', socket.id);
+            // Re-register if already logged in
+            if (currentUser.id) {
+                socket.emit('userOnline', { userId: currentUser.id, username: currentUser.username });
+            }
+        });
+
+        // Handle online users list update
+        socket.on('onlineUsers', (users) => {
+            loadUsers(users);
+        });
+
+        // Handle chat history fetch
+        socket.on('chatHistory', (data) => {
+            chatMessages[data.recipientId] = data.history;
+            if (data.recipientId === activeRecipient.id) {
+                displayChatHistory(data.history);
+            }
+        });
+
+        // Handle new incoming private message
+        socket.on('newPrivateMessage', (data) => {
+            handlePrivateMessage(data);
+        });
+
+        // Feed and Like Handlers (omitted for brevity, assumed functional in original file)
+        socket.on('updateFeed', (post) => { loadFeed(); });
+        socket.on('likeUpdate', (data) => { handleLikeUpdate(data); });
+        socket.on('newComment', (comment) => { handleNewComment(comment); });
+
+
+        // --- INITIAL RUN ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadInitialTheme();
+            attachEventListeners();
+            loadInitialAuth();
+        });
+    </script>
+</body>
+</html>
